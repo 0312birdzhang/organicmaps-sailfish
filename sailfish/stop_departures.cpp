@@ -1,5 +1,6 @@
 #include "sailfish/stop_departures.hpp"
 
+#include "sailfish/live_sources.hpp"
 #include "sailfish/transit_providers.hpp"
 
 #include "live_transit/provider.hpp"
@@ -125,7 +126,7 @@ bool StopDepartures::canExpand() const
 void StopDepartures::SetStop(double lat, double lon, std::string name,
                              std::optional<live_transit::StopPlatform> platform)
 {
-  m_provider = GetTransitProvider({lat, lon});
+  m_provider = GetDeparturesProvider({lat, lon});
   if (!m_provider || !m_provider->HasDepartures())
   {
     Clear();
@@ -167,6 +168,8 @@ void StopDepartures::refresh()
 {
   if (!m_active)
     return;
+  // A key may have been entered meanwhile.
+  m_missingKey = MissingKeySource({m_lat, m_lon});
   m_loading = true;
   emit changed();
 
@@ -189,6 +192,7 @@ void StopDepartures::refresh()
       if (result.m_status == live_transit::Status::Ok)
       {
         self->m_departures = ToVariant(result, *provider, self->m_shown, self->m_live);
+        self->m_attribution = QString::fromStdString(provider->GetDeparturesAttribution(self->m_shown));
         self->UpdateSelected();
         // Of a departure still shown, with the latest times.
         if (!self->m_expandedKey.isEmpty())
@@ -208,6 +212,13 @@ void StopDepartures::refresh()
       emit self->changed();
     });
   });
+}
+
+void StopDepartures::hideMissingKey()
+{
+  HideMissingKeyHint(m_missingKey.value("id").toString());
+  m_missingKey.clear();
+  emit changed();
 }
 
 void StopDepartures::expand(QString const & key)

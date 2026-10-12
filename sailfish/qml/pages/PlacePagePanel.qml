@@ -635,6 +635,34 @@ MapPanel {
                     font.pixelSize: Theme.fontSizeExtraSmall
                     color: Theme.secondaryColor
                 }
+                // A source here gives more with a key.
+                ListItem {
+                    id: missingKeyItem
+                    width: parent.width
+                    contentHeight: missingKeyLabel.height + 2 * Theme.paddingMedium
+                    visible: departuresColumn.departures.missingKey.id !== undefined
+                    onClicked: pageStack.push(Qt.resolvedUrl("LiveSourcePage.qml"),
+                                              { source: departuresColumn.departures.missingKey })
+                    menu: ContextMenu {
+                        MenuItem {
+                            text: appInfo.localized("hide")
+                            onClicked: departuresColumn.departures.hideMissingKey()
+                        }
+                    }
+
+                    Label {
+                        id: missingKeyLabel
+                        x: Theme.horizontalPageMargin
+                        width: parent.width - 2 * x
+                        anchors.verticalCenter: parent.verticalCenter
+                        horizontalAlignment: Text.AlignRight
+                        text: appInfo.localized("departures_missing_key",
+                                                [departuresColumn.departures.missingKey.name || ""])
+                        wrapMode: Text.Wrap
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        color: missingKeyItem.highlighted ? Theme.highlightColor : Theme.secondaryHighlightColor
+                    }
+                }
             }
 
             BackgroundItem {

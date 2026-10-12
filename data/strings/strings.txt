@@ -13807,7 +13807,7 @@ zh-Hant = 顯示
 
 [hide]
 comment = «Hide» context menu
-tags = android-app,apple-maps
+tags = android-app,apple-maps,sailfish
 en = Hide
 af = Versteek
 ar = إخفاء
@@ -44847,7 +44847,7 @@ sv = Visar nästa avgångar vid hållplatser i Sverige, med förseningar. Varje 
 uk = Показує найближчі відправлення на зупинках у Швеції із затримками. Кожна відкрита зупинка надсилається до Trafiklab. Безкоштовний ключ API для Trafiklab Realtime APIs можна отримати на trafiklab.se.
 
 [pref_departures_vehicles_title]
-comment = Sailfish OS: section header for following departures' vehicles on the map
+comment = Sailfish OS: section header for the sources of the vehicles that departures can be followed with on the map
 tags = sailfish
 en = Live vehicles
 de = Live-Fahrzeuge
@@ -44879,49 +44879,16 @@ ru = Ключ GTFS Regional Realtime
 sv = Nyckel för GTFS Regional Realtime
 uk = Ключ GTFS Regional Realtime
 
-[pref_departures_journeys_title]
-comment = Sailfish OS: section header for transit routes from an online journey planner
-tags = sailfish
-en = Transit routes
-de = ÖPNV-Routen
-es = Rutas en transporte público
-fr = Itinéraires en transports en commun
-ru = Маршруты на общественном транспорте
-sv = Kollektivtrafikresor
-uk = Маршрути громадським транспортом
-
-[pref_departures_journeys_summary]
-comment = Sailfish OS: explains the online journey planner setting and which key it needs
-tags = sailfish
-en = Plans transit routes in Sweden with the timetables of all operators. The start and destination of each transit route are sent to Trafiklab. Needs a third free key, for ResRobot v2.1, from the same Trafiklab project.
-de = Plant ÖPNV-Routen in Schweden mit den Fahrplänen aller Verkehrsunternehmen. Start und Ziel jeder ÖPNV-Route werden an Trafiklab gesendet. Dafür ist ein dritter kostenloser Schlüssel für ResRobot v2.1 aus demselben Trafiklab-Projekt nötig.
-es = Planifica rutas en transporte público en Suecia con los horarios de todos los operadores. El origen y el destino de cada ruta se envían a Trafiklab. Necesita una tercera clave gratuita, para ResRobot v2.1, del mismo proyecto de Trafiklab.
-fr = Planifie des itinéraires en transports en commun en Suède avec les horaires de tous les opérateurs. Le départ et la destination de chaque itinéraire sont envoyés à Trafiklab. Nécessite une troisième clé gratuite, pour ResRobot v2.1, du même projet Trafiklab.
-ru = Строит маршруты на общественном транспорте в Швеции по расписаниям всех перевозчиков. Начало и конец каждого маршрута отправляются в Trafiklab. Нужен третий бесплатный ключ, для ResRobot v2.1, из того же проекта Trafiklab.
-sv = Planerar kollektivtrafikresor i Sverige med alla trafikbolags tidtabeller. Start och mål för varje resa skickas till Trafiklab. Kräver en tredje gratis nyckel, för ResRobot v2.1, från samma Trafiklab-projekt.
-uk = Будує маршрути громадським транспортом у Швеції за розкладами всіх перевізників. Початок і кінець кожного маршруту надсилаються до Trafiklab. Потрібен третій безкоштовний ключ, для ResRobot v2.1, з того самого проєкту Trafiklab.
-
 [pref_departures_transitous_summary]
 comment = Sailfish OS: explains the Transitous setting, a free community-run public transport service, and what it sends online
 tags = sailfish
-en = Shows departures and plans transit routes in many countries, with delays where operators publish them. Needs no key. Each stop you open and the start and destination of each transit route are sent to transitous.org. In Sweden, Trafiklab is used instead when you enter its keys.
-de = Zeigt Abfahrten und plant ÖPNV-Routen in vielen Ländern, mit Verspätungen, wo die Verkehrsunternehmen sie veröffentlichen. Kein Schlüssel nötig. Jede geöffnete Haltestelle sowie Start und Ziel jeder ÖPNV-Route werden an transitous.org gesendet. In Schweden wird stattdessen Trafiklab verwendet, wenn du dessen Schlüssel eingibst.
-es = Muestra salidas y planifica rutas en transporte público en muchos países, con retrasos donde los operadores los publican. No necesita clave. Cada parada que abras y el origen y el destino de cada ruta se envían a transitous.org. En Suecia se usa Trafiklab en su lugar si introduces sus claves.
-fr = Affiche les départs et planifie des itinéraires en transports en commun dans de nombreux pays, avec les retards là où les opérateurs les publient. Aucune clé nécessaire. Chaque arrêt ouvert ainsi que le départ et la destination de chaque itinéraire sont envoyés à transitous.org. En Suède, Trafiklab est utilisé à la place si vous saisissez ses clés.
-ru = Показывает отправления и строит маршруты на общественном транспорте во многих странах, с задержками там, где перевозчики их публикуют. Ключ не нужен. Каждая открытая остановка, а также начало и конец каждого маршрута отправляются на transitous.org. В Швеции вместо него используется Trafiklab, если ввести его ключи.
-sv = Visar avgångar och planerar kollektivtrafikresor i många länder, med förseningar där trafikbolagen publicerar dem. Kräver ingen nyckel. Varje hållplats du öppnar och start och mål för varje resa skickas till transitous.org. I Sverige används Trafiklab i stället om du anger dess nycklar.
-uk = Показує відправлення та будує маршрути громадським транспортом у багатьох країнах, із затримками там, де перевізники їх публікують. Ключ не потрібен. Кожна відкрита зупинка, а також початок і кінець кожного маршруту надсилаються на transitous.org. У Швеції замість нього використовується Trafiklab, якщо ввести його ключі.
-
-[pref_departures_journeys_key]
-comment = Sailfish OS: text field for the API key of the online journey planner
-tags = sailfish
-en = ResRobot key
-de = ResRobot-Schlüssel
-es = Clave de ResRobot
-fr = Clé ResRobot
-ru = Ключ ResRobot
-sv = Nyckel för ResRobot
-uk = Ключ ResRobot
+en = Shows departures and plans transit routes in many countries, with delays where operators publish them. Needs no key. Each stop you open and the start and destination of each transit route are sent to transitous.org. In Sweden, departures come from Trafiklab instead when you enter its key. Following a vehicle loads its position from the sources under Live vehicles.
+de = Zeigt Abfahrten und plant ÖPNV-Routen in vielen Ländern, mit Verspätungen, wo die Verkehrsunternehmen sie veröffentlichen. Kein Schlüssel nötig. Jede geöffnete Haltestelle sowie Start und Ziel jeder ÖPNV-Route werden an transitous.org gesendet. In Schweden kommen die Abfahrten stattdessen von Trafiklab, wenn du dessen Schlüssel eingibst. Um ein Fahrzeug zu verfolgen, wird seine Position von den Quellen unter Live-Fahrzeuge geladen.
+es = Muestra salidas y planifica rutas en transporte público en muchos países, con retrasos donde los operadores los publican. No necesita clave. Cada parada que abras y el origen y el destino de cada ruta se envían a transitous.org. En Suecia, las salidas vienen de Trafiklab en su lugar si introduces su clave. Seguir un vehículo descarga su posición de las fuentes en Vehículos en tiempo real.
+fr = Affiche les départs et planifie des itinéraires en transports en commun dans de nombreux pays, avec les retards là où les opérateurs les publient. Aucune clé nécessaire. Chaque arrêt ouvert ainsi que le départ et la destination de chaque itinéraire sont envoyés à transitous.org. En Suède, les départs viennent de Trafiklab à la place si vous saisissez sa clé. Suivre un véhicule charge sa position depuis les sources sous Véhicules en temps réel.
+ru = Показывает отправления и строит маршруты на общественном транспорте во многих странах, с задержками там, где перевозчики их публикуют. Ключ не нужен. Каждая открытая остановка, а также начало и конец каждого маршрута отправляются на transitous.org. В Швеции отправления вместо этого берутся из Trafiklab, если ввести его ключ. Чтобы следить за транспортом, его положение загружается из источников в разделе «Транспорт в реальном времени».
+sv = Visar avgångar och planerar kollektivtrafikresor i många länder, med förseningar där trafikbolagen publicerar dem. Kräver ingen nyckel. Varje hållplats du öppnar och start och mål för varje resa skickas till transitous.org. I Sverige hämtas avgångar från Trafiklab i stället om du anger dess nyckel. För att följa ett fordon hämtas dess position från källorna under Fordon i realtid.
+uk = Показує відправлення та будує маршрути громадським транспортом у багатьох країнах, із затримками там, де перевізники їх публікують. Ключ не потрібен. Кожна відкрита зупинка, а також початок і кінець кожного маршруту надсилаються на transitous.org. У Швеції відправлення натомість беруться з Trafiklab, якщо ввести його ключ. Щоб стежити за транспортом, його положення завантажується з джерел у розділі «Транспорт у реальному часі».
 
 [pref_departures_key]
 comment = Sailfish OS: text field for the API key of the live departures provider
@@ -44933,3 +44900,91 @@ fr = Clé d’API Trafiklab
 ru = Ключ API Trafiklab
 sv = API-nyckel för Trafiklab
 uk = Ключ API Trafiklab
+
+[pref_live_source_no_key]
+comment = Sailfish OS: a source of live vehicles that needs no API key
+tags = sailfish
+en = No key needed
+de = Kein Schlüssel nötig
+es = No necesita clave
+fr = Aucune clé nécessaire
+ru = Ключ не нужен
+sv = Ingen nyckel behövs
+uk = Ключ не потрібен
+
+[pref_live_source_add_key]
+comment = Sailfish OS: a source of live vehicles whose free API key the user hasn't entered yet
+tags = sailfish
+en = Add key
+de = Schlüssel hinzufügen
+es = Añadir clave
+fr = Ajouter une clé
+ru = Добавить ключ
+sv = Lägg till nyckel
+uk = Додати ключ
+
+[pref_live_source_key_added]
+comment = Sailfish OS: a source of live vehicles whose API key the user entered
+tags = sailfish
+en = Key added
+de = Schlüssel hinzugefügt
+es = Clave añadida
+fr = Clé ajoutée
+ru = Ключ добавлен
+sv = Nyckel tillagd
+uk = Ключ додано
+
+[pref_live_source_get_key]
+comment = Sailfish OS: menu item that opens the website where users get a free API key for a source of live data
+tags = sailfish
+en = Get a free key
+de = Kostenlosen Schlüssel holen
+es = Obtener una clave gratuita
+fr = Obtenir une clé gratuite
+ru = Получить бесплатный ключ
+sv = Skaffa en gratis nyckel
+uk = Отримати безкоштовний ключ
+
+[pref_live_sources_none]
+comment = Sailfish OS: no source of live vehicles covers the downloaded maps
+tags = sailfish
+en = Sources of live vehicles for the regions of your downloaded maps show up here.
+de = Quellen für Live-Fahrzeuge in den Regionen deiner heruntergeladenen Karten erscheinen hier.
+es = Aquí aparecen las fuentes de vehículos en tiempo real de las regiones de tus mapas descargados.
+fr = Les sources de véhicules en temps réel des régions de vos cartes téléchargées apparaissent ici.
+ru = Здесь появятся источники транспорта в реальном времени для регионов ваших загруженных карт.
+sv = Källor för fordon i realtid i regionerna för dina nedladdade kartor visas här.
+uk = Тут з’являться джерела транспорту в реальному часі для регіонів ваших завантажених мап.
+
+[live_source_hsl_summary]
+comment = Sailfish OS: what HSL, the Helsinki region transport authority, gives as a source of live vehicles and what it is sent
+tags = sailfish
+en = Buses, trams, metro and trains in the Helsinki region, with Transitous. Following a vehicle downloads the positions of all HSL vehicles; neither the stop nor the trip is sent.
+de = Busse, Straßenbahnen, Metro und Züge in der Region Helsinki, mit Transitous. Um ein Fahrzeug zu verfolgen, werden die Positionen aller HSL-Fahrzeuge geladen; weder Haltestelle noch Fahrt werden gesendet.
+es = Autobuses, tranvías, metro y trenes en la región de Helsinki, con Transitous. Seguir un vehículo descarga las posiciones de todos los vehículos de HSL; no se envía ni la parada ni el viaje.
+fr = Bus, tramways, métro et trains dans la région d’Helsinki, avec Transitous. Suivre un véhicule télécharge les positions de tous les véhicules HSL ; ni l’arrêt ni le trajet ne sont envoyés.
+ru = Автобусы, трамваи, метро и поезда в регионе Хельсинки, вместе с Transitous. Чтобы следить за транспортом, загружаются положения всего транспорта HSL; ни остановка, ни рейс не отправляются.
+sv = Bussar, spårvagnar, metro och tåg i Helsingforsregionen, med Transitous. För att följa ett fordon hämtas positionerna för alla HSL:s fordon; varken hållplatsen eller turen skickas.
+uk = Автобуси, трамваї, метро й потяги в регіоні Гельсінкі, разом із Transitous. Щоб стежити за транспортом, завантажуються положення всього транспорту HSL; ні зупинка, ні рейс не надсилаються.
+
+[live_source_entur_summary]
+comment = Sailfish OS: what Entur, Norway's national public transport registry, gives as a source of live vehicles and what it is sent
+tags = sailfish
+en = Buses, trams, boats and trains across Norway, with Transitous, except Ruter in Oslo, which publishes no vehicles. Following a vehicle sends its trip to Entur.
+de = Busse, Straßenbahnen, Schiffe und Züge in ganz Norwegen, mit Transitous, außer Ruter in Oslo, das keine Fahrzeuge veröffentlicht. Um ein Fahrzeug zu verfolgen, wird seine Fahrt an Entur gesendet.
+es = Autobuses, tranvías, barcos y trenes en toda Noruega, con Transitous, excepto Ruter en Oslo, que no publica sus vehículos. Seguir un vehículo envía su viaje a Entur.
+fr = Bus, tramways, bateaux et trains dans toute la Norvège, avec Transitous, sauf Ruter à Oslo, qui ne publie pas ses véhicules. Suivre un véhicule envoie son trajet à Entur.
+ru = Автобусы, трамваи, суда и поезда по всей Норвегии, вместе с Transitous, кроме Ruter в Осло, который не публикует свой транспорт. Чтобы следить за транспортом, его рейс отправляется в Entur.
+sv = Bussar, spårvagnar, båtar och tåg i hela Norge, med Transitous, utom Ruter i Oslo, som inte publicerar sina fordon. För att följa ett fordon skickas dess tur till Entur.
+uk = Автобуси, трамваї, судна й потяги по всій Норвегії, разом із Transitous, крім Ruter в Осло, який не публікує свій транспорт. Щоб стежити за транспортом, його рейс надсилається до Entur.
+
+[departures_missing_key]
+comment = Sailfish OS: under the departures at a stop, opens the settings of a source whose free API key would show the vehicles; %@ is its name
+tags = sailfish
+en = Live vehicles here need a free %@ key
+de = Live-Fahrzeuge hier brauchen einen kostenlosen %@-Schlüssel
+es = Los vehículos en tiempo real aquí necesitan una clave gratuita de %@
+fr = Les véhicules en temps réel ici nécessitent une clé %@ gratuite
+ru = Для транспорта в реальном времени здесь нужен бесплатный ключ %@
+sv = Fordon i realtid här kräver en gratis nyckel från %@
+uk = Для транспорту в реальному часі тут потрібен безкоштовний ключ %@

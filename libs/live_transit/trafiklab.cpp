@@ -8,16 +8,12 @@
 
 #include "base/assert.hpp"
 #include "base/logging.hpp"
-#include "base/string_utils.hpp"
 
 #include <algorithm>
-#include <chrono>
-#include <limits>
 #include <map>
 #include <ranges>
 #include <set>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include <glaze/json.hpp>
@@ -92,143 +88,15 @@ struct DeparturesResponse
 };
 }  // namespace trafiklab_json
 
-namespace resrobot_json
-{
-// HAFAS writes a list with one element as the element.
-template <typename T>
-using OneOrMany = std::variant<std::vector<T>, T>;
-
-template <typename T, typename Fn>
-void ForEach(OneOrMany<T> const & items, Fn && fn)
-{
-  if (auto const * many = std::get_if<std::vector<T>>(&items))
-    std::for_each(many->begin(), many->end(), fn);
-  else
-    fn(std::get<T>(items));
-}
-
-struct Place
-{
-  std::string name;
-  double lat = 0.0;
-  double lon = 0.0;
-  std::string date;
-  std::string time;
-  std::optional<std::string> rtDate;
-  std::optional<std::string> rtTime;
-};
-
-struct ProductJson
-{
-  std::string num;
-  std::string line;
-  std::string displayNumber;
-  // The product class bit, documented as a string but also seen as a number.
-  std::variant<std::string, double> cls;
-};
-
-struct StopPoint
-{
-  std::string name;
-  double lat = 0.0;
-  double lon = 0.0;
-  // The first stop has no arrival and the last no departure.
-  std::optional<std::string> arrDate;
-  std::optional<std::string> arrTime;
-  std::optional<std::string> rtArrDate;
-  std::optional<std::string> rtArrTime;
-  std::optional<std::string> depDate;
-  std::optional<std::string> depTime;
-  std::optional<std::string> rtDepDate;
-  std::optional<std::string> rtDepTime;
-};
-
-struct StopsJson
-{
-  OneOrMany<StopPoint> Stop;
-};
-
-struct LegJson
-{
-  std::string type;
-  std::string direction;
-  std::optional<double> dist;
-  std::optional<OneOrMany<ProductJson>> Product;
-  Place Origin;
-  Place Destination;
-  std::optional<StopsJson> Stops;
-};
-
-struct LegListJson
-{
-  OneOrMany<LegJson> Leg;
-};
-
-struct TripJson
-{
-  LegListJson LegList;
-};
-
-struct BoardProductJson
-{
-  std::string num;
-  std::string displayNumber;
-};
-
-struct BoardDepartureJson
-{
-  std::string date;
-  std::string time;
-  std::optional<BoardProductJson> ProductAtStop;
-  std::optional<StopsJson> Stops;
-};
-
-struct BoardResponse
-{
-  std::optional<std::vector<BoardDepartureJson>> Departure;
-  std::optional<std::string> errorCode;
-  std::optional<std::string> errorText;
-};
-
-struct Response
-{
-  std::optional<std::vector<TripJson>> Trip;
-  // The contexts to scroll back and forward.
-  std::optional<std::string> scrB;
-  std::optional<std::string> scrF;
-  std::optional<std::string> errorCode;
-  std::optional<std::string> errorText;
-};
-}  // namespace resrobot_json
-
 namespace
 {
 std::string_view constexpr kBaseUrl = "https://realtime-api.trafiklab.se/v1/";
 std::string_view constexpr kVehiclesUrl = "https://opendata.samtrafiken.se/gtfs-rt/";
-std::string_view constexpr kResRobotUrl = "https://api.resrobot.se/v2.1/trip";
-std::string_view constexpr kResRobotBoardUrl = "https://api.resrobot.se/v2.1/departureBoard";
 double constexpr kTimeoutSec = 10.0;
 // Between the stop on the map and the nearest stop of a group with its name.
 double constexpr kMaxStopDistanceM = 500.0;
 
 glz::opts constexpr kJsonOpts{.error_on_unknown_keys = false};
-
-// ResRobot product classes.
-TransportMode ToMode(int productClass)
-{
-  switch (productClass)
-  {
-  case 2:
-  case 4:
-  case 16: return TransportMode::Train;
-  case 8:
-  case 128: return TransportMode::Bus;
-  case 32: return TransportMode::Metro;
-  case 64: return TransportMode::Tram;
-  case 256: return TransportMode::Ferry;
-  }
-  return TransportMode::Other;
-}
 
 TransportMode ToMode(std::string_view mode)
 {
@@ -243,22 +111,6 @@ TransportMode ToMode(std::string_view mode)
   if (mode == "FERRY" || mode == "BOAT")
     return TransportMode::Ferry;
   return TransportMode::Other;
-}
-
-Status ToResRobotStatus(std::string_view errorCode)
-{
-  if (errorCode == "API_AUTH")
-    return Status::Unauthorized;
-  if (errorCode == "SVC_NO_RESULT" || errorCode.starts_with("SVC_LOC"))
-    return Status::NoResult;
-  return Status::ServerError;
-}
-
-std::optional<LocalTime> ParseDateTime(std::optional<std::string> const & date, std::optional<std::string> const & time)
-{
-  if (!date || !time)
-    return {};
-  return ParseLocalTime(*date + 'T' + *time);
 }
 
 Status ToStatus(int httpCode)
@@ -377,76 +229,6 @@ std::vector<Vehicle> TrafiklabProvider::RequestVehicles(std::vector<Departure> c
   return result;
 }
 
-std::vector<TripStops> TrafiklabProvider::RequestTripStops(Stop const & stop,
-                                                          std::vector<Departure> const & departures)
-{
-  if (departures.empty())
-    return {};
-  auto const fail = [&](Status status)
-  {
-    std::vector<TripStops> result(departures.size());
-    for (auto & stops : result)
-      stops.m_status = status;
-    return result;
-  };
-  Status status = Status::Ok;
-  auto const id = FindStopGroup(stop, status);
-  if (!id)
-    return fail(status);
-
-  using namespace std::chrono;
-  auto const [first, last] = std::ranges::minmax(departures | std::views::transform(&Departure::m_scheduled));
-  auto const day = floor<days>(first);
-  year_month_day const date{day};
-  hh_mm_ss const clock{first - day};
-  auto const twoDigits = [](auto value) { return (value < 10 ? "0" : "") + std::to_string(value); };
-  // The departures from |first| up to |last|, as ResRobot drops the seconds.
-  auto const duration = floor<minutes>(last).time_since_epoch() - floor<minutes>(first).time_since_epoch() + 1min;
-  std::string const requestUrl = std::string(kResRobotBoardUrl) + "?format=json&passlist=1&accessId=" +
-                                 m_keys.m_resrobot + "&id=" + url::UrlEncode(*id) + "&date=" +
-                                 std::to_string(static_cast<int>(date.year())) + '-' +
-                                 twoDigits(static_cast<unsigned>(date.month())) + '-' +
-                                 twoDigits(static_cast<unsigned>(date.day())) + "&time=" +
-                                 twoDigits(clock.hours().count()) + ':' + twoDigits(clock.minutes().count()) +
-                                 "&duration=" + std::to_string(duration.count());
-  platform::HttpClient request(requestUrl);
-  request.SetTimeout(kTimeoutSec);
-  // Errors come with a JSON body.
-  if (!request.RunHttpRequest() || request.ErrorCode() < 100)
-  {
-    LOG(LWARNING, ("ResRobot request failed:", request.ErrorCode()));
-    return fail(Status::NetworkError);
-  }
-  auto result = trafiklab::ParseTripStops(request.ServerResponse(), departures);
-  if (request.ErrorCode() != 200 && std::ranges::all_of(result, [](auto const & s) { return s.m_status == Status::Ok; }))
-    return fail(ToStatus(request.ErrorCode()));
-  return result;
-}
-
-Journeys TrafiklabProvider::RequestJourneys(JourneyQuery const & query)
-{
-  auto const coord = [](double value) { return strings::to_string_dac(value, 6); };
-  std::string const requestUrl =
-      std::string(kResRobotUrl) + "?format=json&passlist=1&accessId=" + m_keys.m_resrobot +
-      "&originCoordLat=" + coord(query.m_from.m_lat) + "&originCoordLong=" + coord(query.m_from.m_lon) +
-      "&destCoordLat=" + coord(query.m_to.m_lat) + "&destCoordLong=" + coord(query.m_to.m_lon) +
-      (query.m_context.empty() ? "" : "&context=" + url::UrlEncode(query.m_context));
-  platform::HttpClient request(requestUrl);
-  request.SetTimeout(kTimeoutSec);
-  // Errors such as no journey come with a JSON body.
-  if (!request.RunHttpRequest() || request.ErrorCode() < 100)
-  {
-    LOG(LWARNING, ("ResRobot request failed:", request.ErrorCode()));
-    Journeys result;
-    result.m_status = Status::NetworkError;
-    return result;
-  }
-  auto result = trafiklab::ParseJourneys(request.ServerResponse());
-  if (result.m_status == Status::Ok && request.ErrorCode() != 200)
-    result.m_status = ToStatus(request.ErrorCode());
-  return result;
-}
-
 namespace trafiklab
 {
 std::vector<std::string> GetStopQueries(std::string_view name)
@@ -552,173 +334,6 @@ bool ParseDepartures(std::string_view json, Departures & departures)
   }
   std::ranges::stable_sort(departures.m_departures, {}, &Departure::GetTime);
   return true;
-}
-
-Journeys ParseJourneys(std::string_view json)
-{
-  Journeys result;
-  resrobot_json::Response response;
-  if (auto const error = glz::read<kJsonOpts>(response, json); error)
-  {
-    LOG(LWARNING, ("Can't parse ResRobot trips:", glz::format_error(error, json)));
-    result.m_status = Status::ServerError;
-    return result;
-  }
-  if (response.errorCode)
-  {
-    LOG(LINFO, ("ResRobot error:", *response.errorCode, response.errorText.value_or("")));
-    result.m_status = ToResRobotStatus(*response.errorCode);
-    return result;
-  }
-
-  auto const toStop = [](resrobot_json::Place const & place) -> std::optional<JourneyStop>
-  {
-    auto const & date = place.rtDate ? *place.rtDate : place.date;
-    auto const & time = place.rtTime ? *place.rtTime : place.time;
-    auto const parsed = ParseLocalTime(date + 'T' + time);
-    if (!parsed)
-      return {};
-    return JourneyStop{place.name, {place.lat, place.lon}, *parsed};
-  };
-  // At the arrival, but the departure at the first stop.
-  auto const toPassedStop = [](resrobot_json::StopPoint const & stop) -> std::optional<JourneyStop>
-  {
-    auto const & date = stop.rtArrDate ? stop.rtArrDate
-                      : stop.arrDate   ? stop.arrDate
-                      : stop.rtDepDate ? stop.rtDepDate
-                                       : stop.depDate;
-    auto const & time = stop.rtArrTime ? stop.rtArrTime
-                      : stop.arrTime   ? stop.arrTime
-                      : stop.rtDepTime ? stop.rtDepTime
-                                       : stop.depTime;
-    if (!date || !time)
-      return {};
-    auto const parsed = ParseLocalTime(*date + 'T' + *time);
-    if (!parsed)
-      return {};
-    return JourneyStop{stop.name, {stop.lat, stop.lon}, *parsed};
-  };
-
-  for (auto const & trip : response.Trip.value_or(std::vector<resrobot_json::TripJson>{}))
-  {
-    Journey journey;
-    bool valid = true;
-    resrobot_json::ForEach(trip.LegList.Leg, [&](resrobot_json::LegJson const & l)
-    {
-      auto from = toStop(l.Origin);
-      auto to = toStop(l.Destination);
-      if (!from || !to)
-      {
-        valid = false;
-        return;
-      }
-      Leg & leg = journey.m_legs.emplace_back();
-      leg.m_walk = l.type != "JNY";
-      leg.m_direction = l.direction;
-      leg.m_distanceM = l.dist.value_or(0.0);
-      if (l.Stops)
-      {
-        resrobot_json::ForEach(l.Stops->Stop, [&](resrobot_json::StopPoint const & stop)
-        {
-          if (auto passed = toPassedStop(stop))
-            leg.m_stops.push_back(std::move(*passed));
-        });
-      }
-      // The stops include the ends.
-      if (leg.m_stops.size() < 2)
-        leg.m_stops = {*from, *to};
-      for (auto const & stop : leg.m_stops)
-        leg.m_path.push_back(stop.m_latLon);
-      leg.m_from = std::move(*from);
-      leg.m_to = std::move(*to);
-      if (!leg.m_walk && l.Product)
-      {
-        bool first = true;
-        resrobot_json::ForEach(*l.Product, [&](resrobot_json::ProductJson const & product)
-        {
-          if (!std::exchange(first, false))
-            return;
-          leg.m_line = !product.line.empty()          ? product.line
-                     : !product.displayNumber.empty() ? product.displayNumber
-                                                      : product.num;
-          int productClass = 0;
-          if (auto const * number = std::get_if<double>(&product.cls))
-            productClass = static_cast<int>(*number);
-          else if (!strings::to_int(std::get<std::string>(product.cls), productClass))
-            productClass = 0;
-          leg.m_mode = ToMode(productClass);
-        });
-      }
-    });
-    if (valid && !journey.m_legs.empty())
-      result.m_journeys.push_back(std::move(journey));
-  }
-  std::ranges::stable_sort(result.m_journeys, {}, &Journey::GetDeparture);
-  result.m_earlier = response.scrB.value_or("");
-  result.m_later = response.scrF.value_or("");
-  return result;
-}
-
-std::vector<TripStops> ParseTripStops(std::string_view json, std::vector<Departure> const & departures)
-{
-  std::vector<TripStops> result(departures.size());
-  auto const fail = [&](Status status)
-  {
-    for (auto & stops : result)
-      stops.m_status = status;
-    return result;
-  };
-  resrobot_json::BoardResponse response;
-  if (auto const error = glz::read<kJsonOpts>(response, json); error)
-  {
-    LOG(LWARNING, ("Can't parse the ResRobot departures:", glz::format_error(error, json)));
-    return fail(Status::ServerError);
-  }
-  if (response.errorCode)
-  {
-    LOG(LINFO, ("ResRobot error:", *response.errorCode, response.errorText.value_or("")));
-    return fail(ToResRobotStatus(*response.errorCode));
-  }
-
-  auto const board = response.Departure.value_or(std::vector<resrobot_json::BoardDepartureJson>{});
-  for (size_t i = 0; i < departures.size(); ++i)
-  {
-    auto const & departure = departures[i];
-    // By its line and time, as the realtime and ResRobot trip ids differ. ResRobot drops the seconds, which some
-    // operators keep, e.g. SL.
-    auto const scheduled = std::chrono::floor<std::chrono::minutes>(departure.m_scheduled);
-    auto const it = std::ranges::find_if(board, [&](resrobot_json::BoardDepartureJson const & d)
-    {
-      auto const time = ParseLocalTime(d.date + 'T' + d.time);
-      if (!d.ProductAtStop || !d.Stops || !time || std::chrono::floor<std::chrono::minutes>(*time) != scheduled)
-        return false;
-      auto const & product = *d.ProductAtStop;
-      return strings::EqualAsciiNoCase(product.displayNumber.empty() ? product.num : product.displayNumber,
-                                       departure.m_line);
-    });
-    if (it == board.end())
-    {
-      result[i].m_status = Status::NoResult;
-      continue;
-    }
-    bool first = true;
-    resrobot_json::ForEach(it->Stops->Stop, [&](resrobot_json::StopPoint const & s)
-    {
-      // The board's own stop.
-      if (std::exchange(first, false))
-        return;
-      bool const arrives = s.arrTime.has_value();
-      auto const time = arrives ? ParseDateTime(s.arrDate, s.arrTime) : ParseDateTime(s.depDate, s.depTime);
-      if (!time)
-        return;
-      result[i].m_stops.push_back({.m_name = s.name,
-                                   .m_latLon = {s.lat, s.lon},
-                                   .m_scheduled = *time,
-                                   .m_realtime = arrives ? ParseDateTime(s.rtArrDate, s.rtArrTime)
-                                                         : ParseDateTime(s.rtDepDate, s.rtDepTime)});
-    });
-  }
-  return result;
 }
 }  // namespace trafiklab
 }  // namespace live_transit

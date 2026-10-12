@@ -9,27 +9,37 @@
 
 namespace sailfish
 {
-std::shared_ptr<live_transit::Provider> GetTransitProvider(ms::LatLon const & latLon)
+namespace
+{
+std::shared_ptr<live_transit::Provider> GetTransitousProvider()
+{
+  if (!LoadSetting(kTransitousSetting, false))
+    return nullptr;
+  static auto const transitous = std::make_shared<live_transit::TransitousProvider>();
+  return transitous;
+}
+}  // namespace
+
+std::shared_ptr<live_transit::Provider> GetDeparturesProvider(ms::LatLon const & latLon)
 {
   static std::shared_ptr<live_transit::TrafiklabProvider> trafiklab;
   static live_transit::TrafiklabKeys trafiklabKeys;
 
   live_transit::TrafiklabKeys keys{LoadSetting(kTrafiklabKeySetting, std::string()),
-                                   LoadSetting(kTrafiklabVehiclesKeySetting, std::string()),
-                                   LoadSetting(kTrafiklabResRobotKeySetting, std::string())};
+                                   LoadSetting(kTrafiklabVehiclesKeySetting, std::string())};
   if (keys != trafiklabKeys || !trafiklab)
   {
     trafiklabKeys = keys;
     trafiklab = std::make_shared<live_transit::TrafiklabProvider>(std::move(keys));
   }
-  // Vehicles are only found from departures.
-  if (trafiklab->Covers(latLon) && (trafiklab->HasDepartures() || trafiklab->HasJourneys()))
+  // Trafiklab's departures can be followed on the map.
+  if (trafiklab->Covers(latLon) && trafiklab->HasDepartures())
     return trafiklab;
-  if (LoadSetting(kTransitousSetting, false))
-  {
-    static auto const transitous = std::make_shared<live_transit::TransitousProvider>();
-    return transitous;
-  }
-  return nullptr;
+  return GetTransitousProvider();
+}
+
+std::shared_ptr<live_transit::Provider> GetJourneysProvider()
+{
+  return GetTransitousProvider();
 }
 }  // namespace sailfish

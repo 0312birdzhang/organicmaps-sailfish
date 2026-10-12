@@ -4,6 +4,7 @@
 
 #include "coding/url.hpp"
 
+#include "base/assert.hpp"
 #include "base/logging.hpp"
 #include "base/string_utils.hpp"
 #include "base/timegm.hpp"
@@ -14,7 +15,10 @@
 #include <chrono>
 #include <cmath>
 #include <ctime>
+#include <map>
 #include <optional>
+#include <ranges>
+#include <set>
 
 #include <glaze/json.hpp>
 
@@ -93,6 +97,50 @@ struct PlanResponse
 };
 }  // namespace transitous_json
 
+namespace entur_json
+{
+struct ServiceJourneyId
+{
+  std::string id;
+};
+
+struct Variables
+{
+  std::vector<ServiceJourneyId> ids;
+};
+
+struct Request
+{
+  std::string query;
+  Variables variables;
+};
+
+struct Location
+{
+  double latitude = 0.0;
+  double longitude = 0.0;
+};
+
+struct VehicleUpdate
+{
+  std::optional<ServiceJourneyId> serviceJourney;
+  std::optional<Location> location;
+  std::optional<double> bearing;
+  std::optional<double> speed;
+  std::optional<double> lastUpdatedEpochSecond;
+};
+
+struct Data
+{
+  std::vector<VehicleUpdate> vehicles;
+};
+
+struct Response
+{
+  std::optional<Data> data;
+};
+}  // namespace entur_json
+
 namespace transitous
 {
 namespace
@@ -100,6 +148,8 @@ namespace
 std::string_view constexpr kBaseUrl = "https://api.transitous.org/api/v6/";
 // Its usage policy asks to be told who calls.
 std::string_view constexpr kUserAgent = "OrganicMaps-Sailfish (+https://organicmaps.app)";
+// Entur asks clients to name themselves as "<company>-<application>".
+std::string_view constexpr kEnturClientName = "organicmaps-sailfish";
 double constexpr kTimeoutSec = 10.0;
 // Around the stop on the map, which may lie apart from the timetable's.
 int constexpr kStopRadiusM = 100;
@@ -219,6 +269,88 @@ std::vector<TripStops> TransitousProvider::RequestTripStops(Stop const &, std::v
       result[i] = it->second;
     else
       result[i].m_status = Status::NoResult;
+  return result;
+}
+
+std::string TransitousProvider::GetDeparturesAttribution(std::vector<Departure> const & departures) const
+{
+  std::string result(GetAttribution());
+  std::set<std::string_view> added;
+  for (auto const & departure : departures)
+  {
+    if (!CanTrack(departure))
+      continue;
+    auto const * feed = transitous::FindVehicleFeed(transitous::ParseTripId(departure.m_tripId)->m_feed);
+    if (added.insert(feed->m_attribution).second)
+      result += ", " + std::string(feed->m_attribution);
+  }
+  return result;
+}
+
+bool TransitousProvider::CanTrack(Departure const & departure) const
+{
+  if (departure.m_canceled)
+    return false;
+  auto const id = transitous::ParseTripId(departure.m_tripId);
+  auto const * feed = id ? transitous::FindVehicleFeed(id->m_feed) : nullptr;
+  return feed && !transitous::GetTripKey(*feed, id->m_gtfsTripId).empty();
+}
+
+std::vector<Vehicle> TransitousProvider::RequestVehicles(std::vector<Departure> const & departures, Status & status)
+{
+  // The departures' trip ids by their keys, per feed.
+  std::map<transitous::VehicleFeed const *, std::map<std::string, std::string>> tripsByFeed;
+  for (auto const & departure : departures)
+  {
+    if (!CanTrack(departure))
+      continue;
+    auto const id = transitous::ParseTripId(departure.m_tripId);
+    auto const * feed = transitous::FindVehicleFeed(id->m_feed);
+    tripsByFeed[feed].emplace(transitous::GetTripKey(*feed, id->m_gtfsTripId), departure.m_tripId);
+  }
+
+  std::vector<Vehicle> result;
+  for (auto const & [feed, trips] : tripsByFeed)
+  {
+    platform::HttpClient request{std::string(feed->m_url)};
+    request.SetTimeout(transitous::kTimeoutSec);
+    request.SetRawHeader("User-Agent", std::string(transitous::kUserAgent));
+    if (feed->m_api == transitous::VehicleApi::Entur)
+    {
+      // The keys are the ServiceJourney ids.
+      std::vector<std::string_view> ids;
+      for (auto const & key : trips | std::views::keys)
+        ids.push_back(key);
+      request.SetRawHeader("ET-Client-Name", std::string(transitous::kEnturClientName));
+      request.SetBodyData(transitous::MakeEnturVehiclesQuery(ids), "application/json");
+    }
+    if (!request.RunHttpRequest() || request.ErrorCode() != 200)
+    {
+      LOG(LWARNING, ("Vehicles request failed:", feed->m_feed, request.ErrorCode()));
+      status = transitous::ToStatus(request.ErrorCode());
+      return {};
+    }
+    std::vector<std::pair<gtfs_realtime::VehicleTrip, Vehicle>> vehicles;
+    bool const parsed = feed->m_api == transitous::VehicleApi::Entur
+                          ? transitous::ParseEnturVehicles(request.ServerResponse(), vehicles)
+                          : gtfs_realtime::ParseVehiclePositions(request.ServerResponse(), vehicles);
+    if (!parsed)
+    {
+      LOG(LWARNING, ("Can't parse the vehicle positions of", feed->m_feed));
+      status = Status::ServerError;
+      return {};
+    }
+    // The others aren't on their way yet, or have no position.
+    std::set<std::string_view> found;
+    for (auto & [trip, vehicle] : vehicles)
+    {
+      auto const it = trips.find(transitous::GetTripKey(*feed, trip));
+      if (it == trips.end() || !found.insert(it->second).second)
+        continue;
+      vehicle.m_tripId = it->second;
+      result.push_back(std::move(vehicle));
+    }
+  }
   return result;
 }
 
@@ -392,6 +524,99 @@ std::optional<LocalTime> ParseUtcTime(std::string_view s)
   if (!utc)
     return {};
   return ToLocal(utc->time_since_epoch().count());
+}
+
+std::optional<TripId> ParseTripId(std::string_view tripId)
+{
+  // The date and time have no '_', and feed names neither.
+  size_t pos = 0;
+  size_t ends[3];
+  for (auto & end : ends)
+  {
+    end = tripId.find('_', pos);
+    if (end == std::string_view::npos || end == pos)
+      return {};
+    pos = end + 1;
+  }
+  if (pos == tripId.size())
+    return {};
+  return TripId{tripId.substr(ends[1] + 1, ends[2] - ends[1] - 1), tripId.substr(pos)};
+}
+
+VehicleFeed const * FindVehicleFeed(std::string_view feed)
+{
+  static VehicleFeed constexpr kFeeds[] = {
+      {"fi-hsl", VehicleApi::GtfsRealtime, "https://realtime.hsl.fi/realtime/vehicle-positions/v2/hsl", "HSL",
+       true /* tripsByStart */},
+      {"no-Entur", VehicleApi::Entur, "https://api.entur.io/realtime/v2/vehicles/graphql", "Entur"},
+  };
+  auto const it = std::ranges::find(kFeeds, feed, &VehicleFeed::m_feed);
+  return it != std::end(kFeeds) ? it : nullptr;
+}
+
+std::string GetTripKey(VehicleFeed const & feed, std::string_view gtfsTripId)
+{
+  // Ruter, in Oslo, publishes no vehicles to Entur.
+  if (feed.m_api == VehicleApi::Entur && gtfsTripId.starts_with("RUT:"))
+    return {};
+  if (!feed.m_tripsByStart)
+    return std::string(gtfsTripId);
+  auto const parts = strings::Tokenize(gtfsTripId, "_");
+  if (parts.size() != 5 || (parts[3] != "1" && parts[3] != "2") || parts[4].size() != 4)
+    return {};
+  // Directions 1 and 2 are GTFS's 0 and 1.
+  return std::string(parts[0]) + '|' + (parts[3] == "1" ? '0' : '1') + '|' + std::string(parts[4]);
+}
+
+std::string GetTripKey(VehicleFeed const & feed, gtfs_realtime::VehicleTrip const & trip)
+{
+  if (!feed.m_tripsByStart)
+    return trip.m_tripId;
+  auto const & start = trip.m_startTime;
+  if (trip.m_routeId.empty() || !trip.m_directionId || *trip.m_directionId > 1 || start.size() < 5 || start[2] != ':')
+    return {};
+  return trip.m_routeId + '|' + static_cast<char>('0' + *trip.m_directionId) + '|' + start.substr(0, 2) +
+         start.substr(3, 2);
+}
+
+std::string MakeEnturVehiclesQuery(std::vector<std::string_view> const & ids)
+{
+  entur_json::Request request{
+      .query =
+          "query($ids: [ServiceJourneyIdAndDate]) { vehicles(serviceJourneyIdAndDates: $ids) "
+          "{ serviceJourney { id } location { latitude longitude } bearing speed lastUpdatedEpochSecond } }"};
+  // Without the dates, which Transitous' trip ids may tell otherwise after midnight.
+  for (auto const id : ids)
+    request.variables.ids.push_back({std::string(id)});
+  std::string json;
+  CHECK(!glz::write_json(request, json), ());
+  return json;
+}
+
+bool ParseEnturVehicles(std::string_view json, std::vector<std::pair<gtfs_realtime::VehicleTrip, Vehicle>> & vehicles)
+{
+  vehicles.clear();
+  entur_json::Response response;
+  if (auto const error = glz::read<kJsonOpts>(response, json); error)
+  {
+    LOG(LWARNING, ("Can't parse Entur vehicles:", glz::format_error(error, json)));
+    return false;
+  }
+  // GraphQL errors come without data.
+  if (!response.data)
+    return false;
+  for (auto const & v : response.data->vehicles)
+  {
+    if (!v.serviceJourney || !v.location)
+      continue;
+    Vehicle vehicle;
+    vehicle.m_latLon = {v.location->latitude, v.location->longitude};
+    vehicle.m_bearing = v.bearing;
+    vehicle.m_speed = v.speed;
+    vehicle.m_timestamp = static_cast<uint64_t>(v.lastUpdatedEpochSecond.value_or(0));
+    vehicles.emplace_back(gtfs_realtime::VehicleTrip{.m_tripId = v.serviceJourney->id}, std::move(vehicle));
+  }
+  return true;
 }
 }  // namespace transitous
 }  // namespace live_transit

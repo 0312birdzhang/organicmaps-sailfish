@@ -37,6 +37,8 @@ class StopDepartures : public QObject
   // vehicle can be tracked.
   Q_PROPERTY(QVariantList departures READ departures NOTIFY changed)
   Q_PROPERTY(QString attribution READ attribution NOTIFY changed)
+  // A source with a key that would give more here, see MissingKeySource().
+  Q_PROPERTY(QVariantMap missingKey READ missingKey NOTIFY changed)
   Q_PROPERTY(QString stopName READ stopName NOTIFY changed)
   // The line picked from the departures as {line, destination, icon, color, next}, next as the first departures
   // of the line in the same direction, each {minutes, time, canceled}; empty when none is picked.
@@ -78,6 +80,7 @@ public:
   int status() const { return m_status; }
   QVariantList departures() const { return m_departures; }
   QString attribution() const { return m_attribution; }
+  QVariantMap missingKey() const { return m_missingKey; }
   QString stopName() const { return QString::fromStdString(m_name); }
   QVariantMap selected() const { return m_selected; }
   QVariantList vehicles() const { return m_vehicles; }
@@ -95,6 +98,8 @@ public:
   Q_INVOKABLE void track(QString const & tripId);
   // Shows where a departure's trip calls next, refreshed with the departures, or hides it when shown.
   Q_INVOKABLE void expand(QString const & key);
+  // Stops hinting at the missing key, also at other stops.
+  Q_INVOKABLE void hideMissingKey();
 
   // Clears without a provider for the position. Of a platform only its departures are shown, rather than those of
   // the whole stop.
@@ -135,6 +140,7 @@ private:
   int m_status = Ok;
   QVariantList m_departures;
   QString m_attribution;
+  QVariantMap m_missingKey;
   QVariantMap m_selected;
 
   std::vector<live_transit::Departure> m_shown;

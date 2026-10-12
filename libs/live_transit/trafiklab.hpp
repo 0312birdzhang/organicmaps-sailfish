@@ -18,8 +18,6 @@ struct TrafiklabKeys
   std::string m_realtime;
   // GTFS Regional Realtime, for the vehicles.
   std::string m_vehicles;
-  // ResRobot v2.1, for the journeys.
-  std::string m_resrobot;
 
   friend bool operator==(TrafiklabKeys const &, TrafiklabKeys const &) = default;
 };
@@ -39,12 +37,11 @@ public:
   bool CanTrack(Departure const & departure) const override;
   std::vector<Vehicle> RequestVehicles(std::vector<Departure> const & departures, Status & status) override;
 
-  // ResRobot takes the stop groups' ids.
-  bool HasTripStops() const override { return !m_keys.m_realtime.empty() && !m_keys.m_resrobot.empty(); }
-  std::vector<TripStops> RequestTripStops(Stop const & stop, std::vector<Departure> const & departures) override;
+  bool HasTripStops() const override { return false; }
+  std::vector<TripStops> RequestTripStops(Stop const &, std::vector<Departure> const &) override { return {}; }
 
-  bool HasJourneys() const override { return !m_keys.m_resrobot.empty(); }
-  Journeys RequestJourneys(JourneyQuery const & query) override;
+  bool HasJourneys() const override { return false; }
+  Journeys RequestJourneys(JourneyQuery const &) override { return {}; }
 
 private:
   // The stop group id, found by the stop's name, since the API has no lookup by position.
@@ -67,9 +64,5 @@ std::string_view GetOperator(std::string_view agencyId);
 // Of the groups matching a name, the one with a stop nearest to |latLon|, if near enough.
 std::optional<std::string> ParseNearestStopGroup(std::string_view json, ms::LatLon const & latLon);
 bool ParseDepartures(std::string_view json, Departures & departures);
-// A ResRobot trip search response, also an error response.
-Journeys ParseJourneys(std::string_view json);
-// Of |departures|, in their order, from a ResRobot departure board with the stops passed.
-std::vector<TripStops> ParseTripStops(std::string_view json, std::vector<Departure> const & departures);
 }  // namespace trafiklab
 }  // namespace live_transit

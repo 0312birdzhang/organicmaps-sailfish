@@ -108,4 +108,33 @@ UNIT_TEST(GtfsRealtime_Malformed)
   // An HTML error page instead of protobuf.
   TEST(!gtfs_realtime::ParseVehiclePositions("<html>Forbidden</html>", vehicles), ());
 }
+
+UNIT_TEST(GtfsRealtime_VehicleTrips)
+{
+  // As HSL's: a start, date, schedule relationship, route and direction, but no trip id.
+  std::string const byStart =
+      Bytes(1, Bytes(2, "17:29:00") + Bytes(3, "20261012") + VarintField(4, 0) + Bytes(5, "9842") + VarintField(6, 1));
+  std::string const position = Bytes(2, Float(1, 60.17f) + Float(2, 24.94f));
+  std::string const feed = Entity(byStart + position) + Entity(Bytes(1, Bytes(1, "trip")) + position) +
+                           // Neither a trip id nor a route.
+                           Entity(Bytes(1, Bytes(2, "17:29:00")) + position);
+
+  std::vector<std::pair<gtfs_realtime::VehicleTrip, Vehicle>> vehicles;
+  TEST(gtfs_realtime::ParseVehiclePositions(feed, vehicles), ());
+  TEST_EQUAL(vehicles.size(), 2, ());
+  auto const & trip = vehicles[0].first;
+  TEST(trip.m_tripId.empty(), ());
+  TEST_EQUAL(trip.m_routeId, "9842", ());
+  TEST_EQUAL(trip.m_directionId, 1, ());
+  TEST_EQUAL(trip.m_startTime, "17:29:00", ());
+  TEST(vehicles[0].second.m_tripId.empty(), ());
+  TEST_EQUAL(vehicles[1].first.m_tripId, "trip", ());
+  TEST(!vehicles[1].first.m_directionId, ());
+
+  // Only those with a trip id.
+  std::vector<Vehicle> withTripIds;
+  TEST(gtfs_realtime::ParseVehiclePositions(feed, withTripIds), ());
+  TEST_EQUAL(withTripIds.size(), 1, ());
+  TEST_EQUAL(withTripIds[0].m_tripId, "trip", ());
+}
 }  // namespace gtfs_realtime_tests

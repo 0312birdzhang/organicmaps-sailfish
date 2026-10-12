@@ -44,6 +44,8 @@ set(SRC
   framework_access.hpp
   helpers.cpp
   helpers.hpp
+  live_sources.cpp
+  live_sources.hpp
   map_item.cpp
   map_item.hpp
   maps_storage.cpp

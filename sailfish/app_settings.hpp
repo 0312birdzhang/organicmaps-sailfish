@@ -28,14 +28,12 @@ class AppSettings : public QObject
   Q_PROPERTY(QString mapLanguageName READ mapLanguageName NOTIFY changed)
   // Map languages as {code, name}.
   Q_PROPERTY(QVariantList mapLanguages READ mapLanguages CONSTANT)
-  // Live departures at stops are shown with a key; empty turns them off.
-  Q_PROPERTY(QString departuresKey READ departuresKey WRITE setDeparturesKey NOTIFY changed)
-  // Departures can be followed on the map with a key for the vehicle positions.
-  Q_PROPERTY(QString vehiclesKey READ vehiclesKey WRITE setVehiclesKey NOTIFY changed)
-  // Transit routes come from an online planner with a key for it.
-  Q_PROPERTY(QString journeysKey READ journeysKey WRITE setJourneysKey NOTIFY changed)
-  // Departures and transit routes from Transitous, where the Trafiklab keys don't apply.
+  // Transit routes, and departures where no source with a key applies, from Transitous.
   Q_PROPERTY(bool transitous READ transitous WRITE setTransitous NOTIFY changed)
+  // See RelevantLiveSources().
+  Q_PROPERTY(QVariantList liveSources READ liveSources NOTIFY changed)
+  // From Transitous or a source with a key.
+  Q_PROPERTY(bool liveDepartures READ liveDepartures NOTIFY changed)
   Q_PROPERTY(QString donateUrl READ donateUrl CONSTANT)
   // The Promo the help button shows instead of the logo.
   Q_PROPERTY(int helpPromo READ helpPromo NOTIFY changed)
@@ -133,14 +131,10 @@ public:
   void setMapLanguage(QString const & code);
   QString mapLanguageName() const;
   QVariantList mapLanguages() const;
-  QString departuresKey() const;
-  void setDeparturesKey(QString const & key);
-  QString vehiclesKey() const;
-  void setVehiclesKey(QString const & key);
-  QString journeysKey() const;
-  void setJourneysKey(QString const & key);
   bool transitous() const;
   void setTransitous(bool enabled);
+  QVariantList liveSources() const;
+  bool liveDepartures() const;
   QString donateUrl() const;
   int helpPromo() const;
   bool buildings3d() const;
@@ -180,6 +174,8 @@ public:
   Q_INVOKABLE void setBackgroundTiles(bool enabled, QString const & url, int cacheSizeMb, int opacityPct);
   Q_INVOKABLE bool isWellFormedTilesUrl(QString const & url) const;
   Q_INVOKABLE void applyMapAppearance(bool dark);
+  // Empty turns the source's data off; applies to the next request.
+  Q_INVOKABLE void setLiveSourceKey(QString const & setting, QString const & key);
 
   static void InitLogging();
   static bool IsSearchHistoryEnabled();

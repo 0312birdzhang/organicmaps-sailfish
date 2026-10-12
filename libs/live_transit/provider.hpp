@@ -3,6 +3,7 @@
 #include "live_transit/departures.hpp"
 #include "live_transit/journeys.hpp"
 
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -18,6 +19,11 @@ public:
   virtual bool Covers(ms::LatLon const & latLon) const = 0;
   // Shown with the provider's data, as some licenses require.
   virtual std::string_view GetAttribution() const = 0;
+  // Of |departures|, whose vehicles may come from other sources.
+  virtual std::string GetDeparturesAttribution(std::vector<Departure> const &) const
+  {
+    return std::string(GetAttribution());
+  }
 
   virtual bool HasDepartures() const = 0;
   virtual Departures RequestDepartures(Stop const & stop) = 0;

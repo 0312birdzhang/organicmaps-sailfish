@@ -140,4 +140,111 @@ UNIT_TEST(Transitous_DecodePolyline)
   TEST_ALMOST_EQUAL_ABS(points[2].m_lat, 43.252, 1e-9, ());
   TEST_ALMOST_EQUAL_ABS(points[2].m_lon, -126.453, 1e-9, ());
 }
+
+UNIT_TEST(Transitous_ParseTripId)
+{
+  auto id = transitous::ParseTripId("20261012_16:15_no-Entur_RUT:ServiceJourney:cd971eb4");
+  TEST(id, ());
+  TEST_EQUAL(id->m_feed, "no-Entur", ());
+  TEST_EQUAL(id->m_gtfsTripId, "RUT:ServiceJourney:cd971eb4", ());
+  // GTFS trip ids may have '_' too.
+  id = transitous::ParseTripId("20261012_17:22_fi-hsl_1004_20261009_Ma_1_1722");
+  TEST(id, ());
+  TEST_EQUAL(id->m_feed, "fi-hsl", ());
+  TEST_EQUAL(id->m_gtfsTripId, "1004_20261009_Ma_1_1722", ());
+
+  TEST(!transitous::ParseTripId("trip-1"), ());
+  TEST(!transitous::ParseTripId("20261012_17:22_fi-hsl_"), ());
+  TEST(!transitous::ParseTripId("20261012__fi-hsl_1"), ());
+}
+
+UNIT_TEST(Transitous_HslTripKeys)
+{
+  auto const * hsl = transitous::FindVehicleFeed("fi-hsl");
+  TEST(hsl, ());
+  TEST(!transitous::FindVehicleFeed("de-DELFI"), ());
+
+  gtfs_realtime::VehicleTrip trip{.m_routeId = "1004", .m_directionId = 0, .m_startTime = "17:22:00"};
+  auto const key = transitous::GetTripKey(*hsl, trip);
+  TEST(!key.empty(), ());
+  // Direction 1 is GTFS's 0.
+  TEST_EQUAL(transitous::GetTripKey(*hsl, "1004_20261009_Ma_1_1722"), key, ());
+  TEST_NOT_EQUAL(transitous::GetTripKey(*hsl, "1004_20261009_Ma_2_1722"), key, ());
+  TEST_NOT_EQUAL(transitous::GetTripKey(*hsl, "1004_20261009_Ma_1_1723"), key, ());
+  TEST_NOT_EQUAL(transitous::GetTripKey(*hsl, "1005_20261009_Ma_1_1722"), key, ());
+  // After midnight.
+  trip.m_startTime = "24:30:00";
+  TEST_EQUAL(transitous::GetTripKey(*hsl, trip), transitous::GetTripKey(*hsl, "1004_20261009_Ma_1_2430"), ());
+
+  TEST(transitous::GetTripKey(*hsl, "1004_20261009_Ma_1").empty(), ());
+  TEST(transitous::GetTripKey(*hsl, "1004_20261009_Ma_3_1722").empty(), ());
+  TEST(transitous::GetTripKey(*hsl, gtfs_realtime::VehicleTrip{.m_routeId = "1004", .m_startTime = "17:22:00"}).empty(),
+       ("Without a direction"));
+  TEST(transitous::GetTripKey(*hsl, gtfs_realtime::VehicleTrip{.m_tripId = "1004_20261009_Ma_1_1722"}).empty(), ());
+}
+
+UNIT_TEST(Transitous_CanTrack)
+{
+  TransitousProvider const provider;
+  Departure departure;
+  departure.m_tripId = "20261012_17:22_fi-hsl_1004_20261009_Ma_1_1722";
+  TEST(provider.CanTrack(departure), ());
+  departure.m_canceled = true;
+  TEST(!provider.CanTrack(departure), ());
+  departure.m_canceled = false;
+  departure.m_tripId = "20261012_16:15_no-Entur_SKY:ServiceJourney:450-206181-21457998";
+  TEST(provider.CanTrack(departure), ());
+  departure.m_tripId = "20261012_16:15_no-Entur_RUT:ServiceJourney:cd971eb4";
+  TEST(!provider.CanTrack(departure), ("Ruter publishes no vehicles"));
+  departure.m_tripId = "20261012_16:15_de-DELFI_1";
+  TEST(!provider.CanTrack(departure), ("Without a vehicles feed"));
+  departure.m_tripId = "20261012_17:22_fi-hsl_unknown";
+  TEST(!provider.CanTrack(departure), ("Not an HSL trip id"));
+}
+UNIT_TEST(Transitous_DeparturesAttribution)
+{
+  TransitousProvider const provider;
+  Departure oslo, helsinki;
+  oslo.m_tripId = "20261012_16:15_no-Entur_RUT:ServiceJourney:cd971eb4";
+  helsinki.m_tripId = "20261012_17:22_fi-hsl_1004_20261009_Ma_1_1722";
+  TEST_EQUAL(provider.GetDeparturesAttribution({}), "Transitous", ());
+  TEST_EQUAL(provider.GetDeparturesAttribution({oslo}), "Transitous", ());
+  TEST_EQUAL(provider.GetDeparturesAttribution({oslo, helsinki, helsinki}), "Transitous, HSL", ());
+  Departure bergen;
+  bergen.m_tripId = "20261012_16:15_no-Entur_SKY:ServiceJourney:450-206181-21457998";
+  TEST_EQUAL(provider.GetDeparturesAttribution({bergen, helsinki}), "Transitous, Entur, HSL", ());
+  helsinki.m_canceled = true;
+  TEST_EQUAL(provider.GetDeparturesAttribution({helsinki}), "Transitous", ("Its vehicle isn't followed"));
+}
+UNIT_TEST(Transitous_EnturVehicles)
+{
+  auto const query = transitous::MakeEnturVehiclesQuery({"SKY:ServiceJourney:1", "ATB:ServiceJourney:\"2"});
+  TEST(query.find(R"("variables":{"ids":[{"id":"SKY:ServiceJourney:1"},{"id":"ATB:ServiceJourney:\"2"}]})") !=
+           std::string::npos,
+       (query));
+
+  std::string_view constexpr kJson = R"({"data": {"vehicles": [
+    {"serviceJourney": {"id": "SKY:ServiceJourney:450-206181-21457998"},
+     "location": {"latitude": 60.3862698, "longitude": 5.3201692},
+     "bearing": 72.27, "speed": null, "lastUpdatedEpochSecond": 1791816093.0},
+    {"serviceJourney": {"id": "SKY:ServiceJourney:4"}, "location": null, "bearing": null},
+    {"serviceJourney": null, "location": {"latitude": 60.0, "longitude": 5.0}}
+  ]}})";
+  std::vector<std::pair<gtfs_realtime::VehicleTrip, Vehicle>> vehicles;
+  TEST(transitous::ParseEnturVehicles(kJson, vehicles), ());
+  TEST_EQUAL(vehicles.size(), 1, ("Only those with a journey and a location"));
+  auto const & [trip, vehicle] = vehicles[0];
+  TEST_EQUAL(trip.m_tripId, "SKY:ServiceJourney:450-206181-21457998", ());
+  TEST_ALMOST_EQUAL_ABS(vehicle.m_latLon.m_lat, 60.3862698, 1e-7, ());
+  TEST_ALMOST_EQUAL_ABS(vehicle.m_latLon.m_lon, 5.3201692, 1e-7, ());
+  TEST(vehicle.m_bearing, ());
+  TEST_ALMOST_EQUAL_ABS(*vehicle.m_bearing, 72.27, 1e-9, ());
+  TEST(!vehicle.m_speed, ());
+  TEST_EQUAL(vehicle.m_timestamp, 1791816093, ());
+
+  TEST(transitous::ParseEnturVehicles(R"({"data": {"vehicles": []}})", vehicles), ());
+  TEST(vehicles.empty(), ());
+  TEST(!transitous::ParseEnturVehicles(R"({"errors": [{"message": "Validation error"}]})", vehicles), ());
+  TEST(!transitous::ParseEnturVehicles("<html>", vehicles), ());
+}
 }  // namespace transitous_tests

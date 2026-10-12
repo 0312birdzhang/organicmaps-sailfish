@@ -184,9 +184,7 @@ Page {
             }
             ValueButton {
                 label: appInfo.localized("pref_departures_title")
-                // On with either key or Transitous.
-                value: appInfo.localized(appSettings.transitous || appSettings.departuresKey + appSettings.journeysKey !== ""
-                                         ? "on" : "off")
+                value: appInfo.localized(appSettings.liveDepartures ? "on" : "off")
                 onClicked: pageStack.push(Qt.resolvedUrl("DeparturesSettingsPage.qml"))
             }
 

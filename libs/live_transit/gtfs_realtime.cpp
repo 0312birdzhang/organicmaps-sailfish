@@ -118,17 +118,32 @@ bool ReadMessage(std::string_view data, OnField && onField)
   return true;
 }
 
-bool ParseTrip(std::string_view data, std::string & tripId)
+bool ParseTrip(std::string_view data, VehicleTrip & trip)
 {
   return ReadMessage(data, [&](Reader & reader, uint32_t field, Reader::WireType type) -> std::optional<bool>
   {
-    if (field != 1 || type != Reader::Bytes)
-      return {};
-    std::string_view id;
-    if (!reader.ReadBytes(id))
-      return false;
-    tripId = id;
-    return true;
+    std::string_view bytes;
+    uint64_t varint;
+    switch (field)
+    {
+    case 1:
+    case 2:
+    case 5:
+      if (type != Reader::Bytes)
+        return {};
+      if (!reader.ReadBytes(bytes))
+        return false;
+      (field == 1 ? trip.m_tripId : field == 2 ? trip.m_startTime : trip.m_routeId) = bytes;
+      return true;
+    case 6:
+      if (type != Reader::Varint)
+        return {};
+      if (!reader.ReadVarint(varint))
+        return false;
+      trip.m_directionId = static_cast<uint32_t>(varint);
+      return true;
+    }
+    return {};
   });
 }
 
@@ -163,7 +178,7 @@ bool ParsePosition(std::string_view data, Vehicle & vehicle, bool & hasPosition)
   return ok;
 }
 
-bool ParseVehicle(std::string_view data, Vehicle & vehicle, bool & complete)
+bool ParseVehicle(std::string_view data, VehicleTrip & trip, Vehicle & vehicle, bool & complete)
 {
   bool hasPosition = false;
   bool const ok = ReadMessage(data, [&](Reader & reader, uint32_t field, Reader::WireType type) -> std::optional<bool>
@@ -174,7 +189,7 @@ bool ParseVehicle(std::string_view data, Vehicle & vehicle, bool & complete)
     case 1:
       if (type != Reader::Bytes)
         return {};
-      return reader.ReadBytes(bytes) && ParseTrip(bytes, vehicle.m_tripId);
+      return reader.ReadBytes(bytes) && ParseTrip(bytes, trip);
     case 2:
       if (type != Reader::Bytes)
         return {};
@@ -186,12 +201,12 @@ bool ParseVehicle(std::string_view data, Vehicle & vehicle, bool & complete)
     }
     return {};
   });
-  complete = hasPosition && !vehicle.m_tripId.empty();
+  complete = hasPosition && (!trip.m_tripId.empty() || !trip.m_routeId.empty());
   return ok;
 }
 }  // namespace
 
-bool ParseVehiclePositions(std::string_view feed, std::vector<Vehicle> & vehicles)
+bool ParseVehiclePositions(std::string_view feed, std::vector<std::pair<VehicleTrip, Vehicle>> & vehicles)
 {
   vehicles.clear();
   // FeedMessage.entity, then FeedEntity.vehicle.
@@ -207,15 +222,32 @@ bool ParseVehiclePositions(std::string_view feed, std::vector<Vehicle> & vehicle
       if (field != 4 || type != Reader::Bytes)
         return {};
       std::string_view data;
+      VehicleTrip trip;
       Vehicle vehicle;
       bool complete;
-      if (!reader.ReadBytes(data) || !ParseVehicle(data, vehicle, complete))
+      if (!reader.ReadBytes(data) || !ParseVehicle(data, trip, vehicle, complete))
         return false;
       if (complete)
-        vehicles.push_back(std::move(vehicle));
+        vehicles.emplace_back(std::move(trip), std::move(vehicle));
       return true;
     });
   });
+}
+
+bool ParseVehiclePositions(std::string_view feed, std::vector<Vehicle> & vehicles)
+{
+  vehicles.clear();
+  std::vector<std::pair<VehicleTrip, Vehicle>> withTrips;
+  if (!ParseVehiclePositions(feed, withTrips))
+    return false;
+  for (auto & [trip, vehicle] : withTrips)
+  {
+    if (trip.m_tripId.empty())
+      continue;
+    vehicle.m_tripId = std::move(trip.m_tripId);
+    vehicles.push_back(std::move(vehicle));
+  }
+  return true;
 }
 }  // namespace gtfs_realtime
 }  // namespace live_transit

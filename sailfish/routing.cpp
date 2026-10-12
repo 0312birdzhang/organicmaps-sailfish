@@ -1399,7 +1399,7 @@ bool Routing::BuildOnline()
       return false;
     latLons.push_back(mercator::ToLatLon(*position));
   }
-  auto provider = GetTransitProvider(latLons.front());
+  auto provider = GetJourneysProvider();
   if (!provider || !provider->HasJourneys() || !provider->Covers(latLons.back()))
     return false;
 
@@ -1414,7 +1414,7 @@ bool Routing::BuildOnline()
 
 void Routing::RequestJourneys(std::string context, bool later)
 {
-  auto provider = GetTransitProvider(m_journeysFrom);
+  auto provider = GetJourneysProvider();
   if (!provider || !provider->HasJourneys())
     return;
   bool const more = !context.empty();
