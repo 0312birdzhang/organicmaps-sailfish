@@ -16,6 +16,8 @@ namespace sailfish
 std::string_view constexpr kTrafiklabKeySetting = "SailfishTrafiklabKey";
 std::string_view constexpr kTrafiklabVehiclesKeySetting = "SailfishTrafiklabVehiclesKey";
 std::string_view constexpr kTrafiklabResRobotKeySetting = "SailfishTrafiklabResRobotKey";
+// Transitous needs no key, so it is turned on explicitly.
+std::string_view constexpr kTransitousSetting = "SailfishTransitous";
 
 // The online public transport provider covering the position, with the keys from the settings, or null. Keys entered
 // in the settings apply to the next call. Called on the GUI thread.

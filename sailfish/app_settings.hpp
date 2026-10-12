@@ -34,6 +34,8 @@ class AppSettings : public QObject
   Q_PROPERTY(QString vehiclesKey READ vehiclesKey WRITE setVehiclesKey NOTIFY changed)
   // Transit routes come from an online planner with a key for it.
   Q_PROPERTY(QString journeysKey READ journeysKey WRITE setJourneysKey NOTIFY changed)
+  // Departures and transit routes from Transitous, where the Trafiklab keys don't apply.
+  Q_PROPERTY(bool transitous READ transitous WRITE setTransitous NOTIFY changed)
   Q_PROPERTY(QString donateUrl READ donateUrl CONSTANT)
   // The Promo the help button shows instead of the logo.
   Q_PROPERTY(int helpPromo READ helpPromo NOTIFY changed)
@@ -137,6 +139,8 @@ public:
   void setVehiclesKey(QString const & key);
   QString journeysKey() const;
   void setJourneysKey(QString const & key);
+  bool transitous() const;
+  void setTransitous(bool enabled);
   QString donateUrl() const;
   int helpPromo() const;
   bool buildings3d() const;

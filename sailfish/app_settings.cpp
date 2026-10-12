@@ -226,6 +226,16 @@ void AppSettings::setJourneysKey(QString const & key)
   SaveUiSetting(kTrafiklabResRobotKeySetting, key.trimmed().toStdString());
 }
 
+bool AppSettings::transitous() const
+{
+  return LoadSetting(kTransitousSetting, false);
+}
+
+void AppSettings::setTransitous(bool enabled)
+{
+  SaveUiSetting(kTransitousSetting, enabled);
+}
+
 QString AppSettings::mapLanguageName() const
 {
   auto const code = Framework::GetMapLanguageCode();

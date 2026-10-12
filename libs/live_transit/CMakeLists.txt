@@ -9,6 +9,8 @@ set(SRC
   provider.hpp
   trafiklab.cpp
   trafiklab.hpp
+  transitous.cpp
+  transitous.hpp
   vehicle_motion.cpp
   vehicle_motion.hpp
 )

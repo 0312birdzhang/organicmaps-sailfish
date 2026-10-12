@@ -28,6 +28,16 @@ Page {
             PageHeader {
                 title: appInfo.localized("pref_departures_title")
             }
+            TextSwitch {
+                text: "Transitous"
+                description: appInfo.localized("pref_departures_transitous_summary")
+                checked: appSettings.transitous
+                automaticCheck: false
+                onClicked: appSettings.transitous = !checked
+            }
+            SectionHeader {
+                text: "Trafiklab"
+            }
             Label {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * x

@@ -3,6 +3,7 @@
 #include "sailfish/helpers.hpp"
 
 #include "live_transit/trafiklab.hpp"
+#include "live_transit/transitous.hpp"
 
 #include <string>
 
@@ -24,6 +25,11 @@ std::shared_ptr<live_transit::Provider> GetTransitProvider(ms::LatLon const & la
   // Vehicles are only found from departures.
   if (trafiklab->Covers(latLon) && (trafiklab->HasDepartures() || trafiklab->HasJourneys()))
     return trafiklab;
+  if (LoadSetting(kTransitousSetting, false))
+  {
+    static auto const transitous = std::make_shared<live_transit::TransitousProvider>();
+    return transitous;
+  }
   return nullptr;
 }
 }  // namespace sailfish

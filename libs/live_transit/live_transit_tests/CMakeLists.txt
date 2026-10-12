@@ -4,6 +4,7 @@ set(SRC
   departures_tests.cpp
   gtfs_realtime_tests.cpp
   trafiklab_tests.cpp
+  transitous_tests.cpp
   vehicle_motion_tests.cpp
 )
 

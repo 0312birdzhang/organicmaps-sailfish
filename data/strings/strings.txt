@@ -44901,6 +44901,17 @@ ru = Строит маршруты на общественном транспо�
 sv = Planerar kollektivtrafikresor i Sverige med alla trafikbolags tidtabeller. Start och mål för varje resa skickas till Trafiklab. Kräver en tredje gratis nyckel, för ResRobot v2.1, från samma Trafiklab-projekt.
 uk = Будує маршрути громадським транспортом у Швеції за розкладами всіх перевізників. Початок і кінець кожного маршруту надсилаються до Trafiklab. Потрібен третій безкоштовний ключ, для ResRobot v2.1, з того самого проєкту Trafiklab.
 
+[pref_departures_transitous_summary]
+comment = Sailfish OS: explains the Transitous setting, a free community-run public transport service, and what it sends online
+tags = sailfish
+en = Shows departures and plans transit routes in many countries, with delays where operators publish them. Needs no key. Each stop you open and the start and destination of each transit route are sent to transitous.org. In Sweden, Trafiklab is used instead when you enter its keys.
+de = Zeigt Abfahrten und plant ÖPNV-Routen in vielen Ländern, mit Verspätungen, wo die Verkehrsunternehmen sie veröffentlichen. Kein Schlüssel nötig. Jede geöffnete Haltestelle sowie Start und Ziel jeder ÖPNV-Route werden an transitous.org gesendet. In Schweden wird stattdessen Trafiklab verwendet, wenn du dessen Schlüssel eingibst.
+es = Muestra salidas y planifica rutas en transporte público en muchos países, con retrasos donde los operadores los publican. No necesita clave. Cada parada que abras y el origen y el destino de cada ruta se envían a transitous.org. En Suecia se usa Trafiklab en su lugar si introduces sus claves.
+fr = Affiche les départs et planifie des itinéraires en transports en commun dans de nombreux pays, avec les retards là où les opérateurs les publient. Aucune clé nécessaire. Chaque arrêt ouvert ainsi que le départ et la destination de chaque itinéraire sont envoyés à transitous.org. En Suède, Trafiklab est utilisé à la place si vous saisissez ses clés.
+ru = Показывает отправления и строит маршруты на общественном транспорте во многих странах, с задержками там, где перевозчики их публикуют. Ключ не нужен. Каждая открытая остановка, а также начало и конец каждого маршрута отправляются на transitous.org. В Швеции вместо него используется Trafiklab, если ввести его ключи.
+sv = Visar avgångar och planerar kollektivtrafikresor i många länder, med förseningar där trafikbolagen publicerar dem. Kräver ingen nyckel. Varje hållplats du öppnar och start och mål för varje resa skickas till transitous.org. I Sverige används Trafiklab i stället om du anger dess nycklar.
+uk = Показує відправлення та будує маршрути громадським транспортом у багатьох країнах, із затримками там, де перевізники їх публікують. Ключ не потрібен. Кожна відкрита зупинка, а також початок і кінець кожного маршруту надсилаються на transitous.org. У Швеції замість нього використовується Trafiklab, якщо ввести його ключі.
+
 [pref_departures_journeys_key]
 comment = Sailfish OS: text field for the API key of the online journey planner
 tags = sailfish
