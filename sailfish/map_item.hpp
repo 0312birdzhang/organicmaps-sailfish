@@ -4,8 +4,11 @@
 
 #include "drape_frontend/gui/skin.hpp"
 #include "drape_frontend/user_event_stream.hpp"
+#include "drape_frontend/visual_params.hpp"
 
 #include "platform/location_service/location_service.hpp"
+
+#include "geometry/screenbase.hpp"
 
 #include <QQuickItem>
 #include <QTimer>
@@ -65,6 +68,8 @@ class MapItem
       qreal bottomWidgetsOffset READ bottomWidgetsOffset WRITE setBottomWidgetsOffset NOTIFY bottomWidgetsOffsetChanged)
   // Height of the map controls along the top right edge; the compass stays below them.
   Q_PROPERTY(qreal topWidgetsOffset READ topWidgetsOffset WRITE setTopWidgetsOffset NOTIFY topWidgetsOffsetChanged)
+  // The fractional zoom level, as the map styles have.
+  Q_PROPERTY(double zoom READ zoom NOTIFY viewportChanged)
 
 public:
   enum Layer
@@ -121,8 +126,13 @@ public:
   Q_INVOKABLE bool needUpdateForRoutes() const;
   // Contour lines are on but not shown at this zoom.
   Q_INVOKABLE bool isolinesNeedZoom() const;
+  // In the item's coordinates, for overlays that follow the map.
+  Q_INVOKABLE QPointF geoToScreen(double lat, double lon) const;
+  // Moves the map there, in the part of it left visible by the panels, keeping the zoom.
+  Q_INVOKABLE void centerOn(double lat, double lon, bool animate);
 
   int myPositionMode() const { return m_myPositionMode; }
+  double zoom() const { return df::GetZoomLevel(m_screen.GetScale()); }
   PlacePage * placePage() const { return m_placePage.get(); }
   Routing * routing() const { return m_routing.get(); }
   qreal viewportBottomInset() const { return m_viewportBottomInset; }
@@ -164,6 +174,10 @@ signals:
   void viewportBottomInsetChanged();
   void horizontalInsetsChanged();
   void currentCountryChanged();
+  // Moved, zoomed, rotated or tilted.
+  void viewportChanged();
+  // A finger started moving the map, once per gesture; not for the map's own moves.
+  void panStarted();
 
 protected:
   QSGNode * updatePaintNode(QSGNode * oldNode, UpdatePaintNodeData *) override;
@@ -185,6 +199,8 @@ private:
   void SendMouseTouch(QMouseEvent * event, df::TouchEvent::ETouchType touchType);
   // Drape needs the touches of a gesture to end it: Qt sends TouchCancel without points.
   void CancelTouch();
+  // Tells panStarted from a press, at |down|, and the moves after it.
+  void DetectPan(QPointF const & pos, bool down);
   void OnMyPositionModeChanged(location::EMyPositionMode mode);
   void OnCompassReading();
   // Auto-downloads the map of the region the user is in.
@@ -212,6 +228,8 @@ private:
   QTimer m_updateTimer;
   df::TouchEvent m_heldTouches;
   bool m_touchActive = false;
+  QPointF m_pressPos;
+  bool m_panning = false;
   double m_visualScale = 1.0;
   qreal m_bottomWidgetsOffset = 0;
   qreal m_topWidgetsOffset = 0;
@@ -240,5 +258,6 @@ private:
   std::string m_currentCountryId;
   QVariantMap m_currentCountry;
   int m_storageSlot = 0;
+  ScreenBase m_screen;
 };
 }  // namespace sailfish

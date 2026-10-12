@@ -2,6 +2,8 @@
 
 #include "sailfish/prompt_player.hpp"
 
+#include "geometry/latlon.hpp"
+
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -9,7 +11,11 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <map>
 #include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 class Framework;
 struct RouteMarkData;
@@ -18,6 +24,12 @@ namespace routing
 {
 class FollowingInfo;
 }  // namespace routing
+
+namespace live_transit
+{
+struct Journey;
+struct Journeys;
+}  // namespace live_transit
 
 namespace sailfish
 {
@@ -36,9 +48,18 @@ class Routing : public QObject
   Q_PROPERTY(QString summary READ summary NOTIFY stateChanged)
   Q_PROPERTY(QString arrival READ arrival NOTIFY stateChanged)
   Q_PROPERTY(QString walkingDistance READ walkingDistance NOTIFY stateChanged)
-  // Transit legs as {icon, number, color, textColor}, or the distances between the points and stops of a ruler
+  // Transit legs as {icon, number, color}, or the distances between the points and stops of a ruler
   // route.
   Q_PROPERTY(QVariantList transitSteps READ transitSteps NOTIFY stateChanged)
+  // Transit journeys from an online planner as {departure, arrival, duration, steps, legs}, steps as in
+  // transitSteps, legs as {walk, icon, number, color, direction, distance, duration, stops: [{name, time}]}; the
+  // selected one is the route.
+  Q_PROPERTY(QVariantList journeys READ journeys NOTIFY stateChanged)
+  Q_PROPERTY(int selectedJourney READ selectedJourney NOTIFY stateChanged)
+  Q_PROPERTY(QString journeysAttribution READ journeysAttribution NOTIFY stateChanged)
+  Q_PROPERTY(bool canLoadEarlierJourneys READ canLoadEarlierJourneys NOTIFY stateChanged)
+  Q_PROPERTY(bool canLoadLaterJourneys READ canLoadLaterJourneys NOTIFY stateChanged)
+  Q_PROPERTY(bool loadingJourneys READ loadingJourneys NOTIFY stateChanged)
   Q_PROPERTY(QString errorTitle READ errorTitle NOTIFY stateChanged)
   Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY stateChanged)
   Q_PROPERTY(QStringList missingMaps READ missingMaps NOTIFY stateChanged)
@@ -135,6 +156,12 @@ public:
   QString arrival() const { return m_arrival; }
   QString walkingDistance() const { return m_walkingDistance; }
   QVariantList transitSteps() const { return m_transitSteps; }
+  QVariantList journeys() const { return m_journeyItems; }
+  int selectedJourney() const { return m_selectedJourney; }
+  QString journeysAttribution() const { return m_journeysAttribution; }
+  bool canLoadEarlierJourneys() const { return !m_earlierJourneys.empty(); }
+  bool canLoadLaterJourneys() const { return !m_laterJourneys.empty(); }
+  bool loadingJourneys() const { return m_loadingJourneys; }
   QString errorTitle() const { return m_errorTitle; }
   QString errorMessage() const { return m_errorMessage; }
   QStringList missingMaps() const { return m_missingMaps; }
@@ -196,6 +223,10 @@ public:
   Q_INVOKABLE void restoreSavedRoute();
   // Saves the built route as a track.
   Q_INVOKABLE void saveRoute();
+  Q_INVOKABLE void selectJourney(int index);
+  // Adds the journeys before the first or after the last one.
+  Q_INVOKABLE void loadEarlierJourneys();
+  Q_INVOKABLE void loadLaterJourneys();
   Q_INVOKABLE void setElevationActivePoint(double distance);
   Q_INVOKABLE void close();
   // Moves the start to the position first if needed.
@@ -270,6 +301,15 @@ private:
   // Keeps the route.
   void LeaveNavigation();
   void SetupVoice();
+  // Asks an online planner for a transit route, when one covers the route; false otherwise.
+  bool BuildOnline();
+  void BuildWithRouter();
+  void RequestJourneys(std::string context, bool later);
+  void OnJourneys(live_transit::Journeys && result, std::string_view attribution);
+  void OnMoreJourneys(live_transit::Journeys && result, bool later);
+  void UpdateJourneyItems();
+  // The colors of a journey's legs, empty for walks and lines without one on the map.
+  std::vector<QString> LegColors(live_transit::Journey const & journey);
   std::string AppVoiceLanguage() const;
   std::string WantedVoiceLanguage() const;
 
@@ -286,6 +326,20 @@ private:
   QString m_arrival;
   QString m_walkingDistance;
   QVariantList m_transitSteps;
+  std::vector<live_transit::Journey> m_journeys;
+  QVariantList m_journeyItems;
+  int m_selectedJourney = -1;
+  QString m_journeysAttribution;
+  ms::LatLon m_journeysFrom;
+  ms::LatLon m_journeysTo;
+  // The contexts of the journeys before and after, empty without them.
+  std::string m_earlierJourneys;
+  std::string m_laterJourneys;
+  bool m_loadingJourneys = false;
+  // By line and stop.
+  std::map<std::pair<std::string, std::string>, QString> m_lineColors;
+  // Answers to earlier requests are dropped.
+  quint64 m_journeysRequestId = 0;
   QString m_errorTitle;
   QString m_errorMessage;
   QStringList m_missingMaps;

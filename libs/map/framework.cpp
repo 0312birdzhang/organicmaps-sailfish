@@ -69,6 +69,7 @@
 #include "std/target_os.hpp"
 
 #include <algorithm>
+#include <set>
 
 using namespace location;
 using namespace routing;
@@ -1605,6 +1606,68 @@ void Framework::ShowRouteTransit(uint32_t relID)
 
   m_drapeEngine->EnableTransitScheme(true);
   m_drapeEngine->ShowRouteTransit(std::move(*info));
+}
+
+void Framework::ShowStopRoutesTransit()
+{
+  if (!m_drapeEngine || !HasPlacePageInfo())
+    return;
+
+  auto const fid = m_currentPlacePageInfo->GetID();
+  std::vector<uint32_t> relIDs;
+  for (auto const & route : m_currentPlacePageInfo->GetRoutes())
+    relIDs.push_back(route.m_relID);
+  if (!fid.IsValid() || relIDs.empty())
+    return;
+
+  // A busy stop has many routes, each a while to build.
+  GetPlatform().RunTask(Platform::Thread::Background, [this, fid, relIDs = std::move(relIDs)]
+  {
+    RelationTrackBuilder builder(m_featuresFetcher.GetDataSource(), fid, m_infoGetter.get());
+    df::TransitInfo all;
+    // Of the stops, which several lines share.
+    all.m_color = dp::Color(110, 110, 110, 255);
+    std::set<FeatureID> stops;
+    for (uint32_t const relID : relIDs)
+    {
+      auto info = builder.BuildTransitInfo(relID);
+      if (!info)
+        continue;
+      for (auto & line : info->m_routes)
+      {
+        line.m_color = info->m_color;
+        all.m_routes.push_back(std::move(line));
+      }
+      // Only this stop stands out, not each route's terminals.
+      for (auto & stop : info->m_stops)
+      {
+        stop.m_highlight = stop.m_featureId == fid;
+        if (stops.insert(stop.m_featureId).second)
+          all.m_stops.push_back(std::move(stop));
+      }
+    }
+
+    GetPlatform().RunTask(Platform::Thread::Gui, [this, fid, all = std::move(all)]() mutable
+    {
+      // Another place may be open by now, or one of the stop's routes picked.
+      if (!m_drapeEngine || !HasPlacePageInfo() || m_currentPlacePageInfo->GetID() != fid || all.IsEmpty())
+        return;
+      if (m_routeTransitSelection && m_routeTransitSelection->m_featureId == fid &&
+          m_routeTransitSelection->m_relID != kAllRoutesRelID)
+      {
+        return;
+      }
+
+      for (auto & line : all.m_routes)
+        UpdateTrackSelectionColor(*line.m_color);
+      if (m_currentModelView.isPerspective())
+        m_currentModelView.ResetPerspective();
+      m_routeTransitSelection.emplace(fid, kAllRoutesRelID);
+
+      m_drapeEngine->EnableTransitScheme(true);
+      m_drapeEngine->ShowRouteTransit(std::move(all));
+    });
+  });
 }
 
 std::string Framework::GetActiveTransitRouteRef() const

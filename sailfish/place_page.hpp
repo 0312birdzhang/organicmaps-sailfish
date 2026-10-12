@@ -8,8 +8,10 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 class Framework;
@@ -85,7 +87,8 @@ class PlacePage : public QObject
   // Transit routes of a stop: rich text refs with the shown one in bold, and {label, color} rows.
   Q_PROPERTY(QString routeRefs READ routeRefs NOTIFY changed)
   Q_PROPERTY(QVariantList routes READ routes NOTIFY changed)
-  Q_PROPERTY(bool isTramStop READ isTramStop NOTIFY changed)
+  // Of the routes' mode, under sailfish/icons.
+  Q_PROPERTY(QString routesIcon READ routesIcon NOTIFY changed)
   Q_PROPERTY(sailfish::StopDepartures * departures READ departures CONSTANT)
   // {icon, text, url} rows; url is opened externally when set.
   // {icon, text, url} rows; the icon is a theme image URL or a file in the icons folder.
@@ -144,7 +147,7 @@ public:
   QString wikiUrl() const { return m_wikiUrl; }
   QString routeRefs() const { return m_routeRefs; }
   QVariantList routes() const { return m_routes; }
-  bool isTramStop() const { return m_isTramStop; }
+  QString routesIcon() const { return m_routesIcon; }
   StopDepartures * departures() { return &m_departures; }
   QVariantList trackStats() const { return m_trackStats; }
   QVariantMap elevation() const { return m_elevation; }
@@ -158,6 +161,10 @@ public:
   Q_INVOKABLE void toggleBookmark();
   Q_INVOKABLE void setElevationActivePoint(double distance);
   Q_INVOKABLE void showRoute(int index);
+  // The route of a departure's line, preferably towards its destination, or -1.
+  Q_INVOKABLE int routeIndex(QString const & line, QString const & destination) const;
+  // Opens the stop of a departure's line nearest to the position, as the provider has it; else shows the position.
+  Q_INVOKABLE void selectStop(QString const & line, QString const & destination, double lat, double lon);
   // Moves the bookmark or track to another list.
   Q_INVOKABLE void setList(quint64 listId);
   // An index into the preset colors.
@@ -179,6 +186,11 @@ signals:
   void switchFullScreen();
 
 private:
+  // Of the stop's route of the line, for its vehicles to follow.
+  void RoutePaths(std::string const & line, std::string const & destination, StopDepartures::OnPaths onPaths);
+  // As routeIndex, and whether the route surely goes towards the destination.
+  std::pair<int, bool> FindRoute(QString const & line, QString const & destination) const;
+
   void Update();
   void UpdateCoordinates(place_page::Info const & info);
   void UpdateRoutes(place_page::Info const & info);
@@ -233,7 +245,9 @@ private:
   QString m_routeRefs;
   QVariantList m_routes;
   std::vector<uint32_t> m_routeIds;
-  bool m_isTramStop = false;
+  QString m_routesIcon;
+  // The stop whose lines were all shown when it opened, by its map and feature index.
+  std::pair<std::string, uint32_t> m_routesShownFor;
   StopDepartures m_departures;
   QVariantList m_trackStats;
   QVariantMap m_elevation;

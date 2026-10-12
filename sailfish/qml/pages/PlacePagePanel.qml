@@ -26,6 +26,8 @@ MapPanel {
     readonly property bool specialAction: placePage.roadToAvoid !== 0 || picking || placePage.isRoutePoint
     // A route slot waits for a place: this one fills it.
     readonly property bool picking: routing.pickType >= 0
+    // Down to the header while the map is moved, to see more of it.
+    property bool minimized
 
     signal addPlaceClicked()
     signal addBusinessClicked()
@@ -47,27 +49,60 @@ MapPanel {
         target: panel.placePage
         onChanged: {
             panel.open = panel.placePage.open
+            minimized = false
             hoursExpanded = false
             wikiExpanded = false
             flickable.contentY = 0
         }
     }
 
+    onMinimizedChanged: if (minimized) flickable.contentY = 0
+
     // Takes at most about the lower 60% of the map.
     SilicaFlickable {
         id: flickable
         width: parent.width
-        height: Math.min(content.height, panel.parent.height * 0.6 - actions.height)
+        height: minimized ? headerItem.height
+                          : Math.min(content.height, panel.parent.height * 0.6 - actions.height)
         contentHeight: content.height
+        interactive: !minimized
         clip: true
+
+        Behavior on height {
+            NumberAnimation { duration: 200; easing.type: Easing.InOutQuad }
+        }
+
+        // A tap or a swipe up brings the rest back, a swipe down closes as before.
+        MouseArea {
+            property real pressY
+
+            anchors.fill: parent
+            z: 1
+            enabled: panel.minimized
+            onPressed: pressY = mouse.y
+            onPositionChanged: {
+                if (pressY - mouse.y > Theme.startDragDistance)
+                    panel.minimized = false
+                else if (mouse.y - pressY > Theme.startDragDistance)
+                    panel.open = false
+            }
+            onClicked: panel.minimized = false
+        }
 
         Column {
             id: content
             width: parent.width
 
             Item {
+                id: headerItem
                 width: parent.width
                 height: header.height + Theme.paddingLarge
+
+                // Toggles the rest of the panel, as panning the map hides it.
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: panel.minimized = !panel.minimized
+                }
 
                 Column {
                     id: header
@@ -87,6 +122,7 @@ MapPanel {
 
                         MouseArea {
                             anchors.fill: parent
+                            onClicked: panel.minimized = !panel.minimized
                             onPressAndHold: ClipboardHelper.copy(placePage.title)
                         }
                         // Several tracks under the tap: choose another one.
@@ -133,6 +169,7 @@ MapPanel {
 
                         MouseArea {
                             anchors.fill: parent
+                            onClicked: panel.minimized = !panel.minimized
                             onPressAndHold: ClipboardHelper.copy(placePage.address)
                         }
                     }
@@ -355,8 +392,8 @@ MapPanel {
                     width: Theme.iconSizeMedium
                     height: width
                     sourceSize: Qt.size(width, height)
-                    source: "../../icons/placepage/" + (placePage.isTramStop ? "ic_category_tram.svg"
-                                                                             : "ic_category_bus.svg")
+                    // Empty for places without routes, whose row is hidden.
+                    source: placePage.routesIcon !== "" ? "../../icons/" + placePage.routesIcon : ""
                     highlighted: routesRow.highlighted
                 }
                 Label {
@@ -383,11 +420,12 @@ MapPanel {
                 width: parent.width
                 visible: departures.available
 
-                // Keeps the minutes current while shown.
+                // Keeps the minutes current while shown, also on the cover for a picked line.
                 Timer {
                     interval: 30000
                     repeat: true
-                    running: departuresColumn.visible && panel.open && Qt.application.active
+                    running: departuresColumn.visible && panel.open
+                             && (Qt.application.active || departuresColumn.departures.selected.line !== undefined)
                     onTriggered: departuresColumn.departures.refresh()
                 }
 
@@ -425,68 +463,166 @@ MapPanel {
                 Repeater {
                     model: departuresColumn.departures.departures
 
-                    Item {
-                        width: departuresColumn.width
-                        height: Theme.itemSizeExtraSmall
+                    Column {
+                        id: departureItem
 
-                        Icon {
-                            id: modeIcon
-                            x: Theme.horizontalPageMargin
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Theme.iconSizeSmall
-                            height: width
-                            sourceSize: Qt.size(width, height)
-                            source: modelData.icon ? "../../icons/routing/" + modelData.icon : ""
-                        }
-                        Label {
-                            id: lineLabel
-                            anchors {
-                                left: modeIcon.right
-                                leftMargin: Theme.paddingSmall
-                                verticalCenter: parent.verticalCenter
+                        readonly property bool expanded: modelData.key === departuresColumn.departures.expandedKey
+                        readonly property var departure: modelData
+
+                        width: departuresColumn.width
+
+                        BackgroundItem {
+                            id: departureRow
+
+                            // Shows the line's route on the map, when the map has it, and follows the vehicle.
+                            readonly property int routeIndex: placePage.routeIndex(modelData.line, modelData.destination)
+                            readonly property string lineColor: routeIndex >= 0 ? placePage.routes[routeIndex].color : ""
+
+                            width: departuresColumn.width
+                            height: Theme.itemSizeExtraSmall
+                            highlighted: down
+                                         || (modelData.live && modelData.tripId === departuresColumn.departures.trackedTrip)
+                            onClicked: {
+                                if (departuresColumn.departures.canExpand)
+                                    departuresColumn.departures.expand(modelData.key)
+                                departuresColumn.departures.select(modelData.line, modelData.destination, modelData.icon,
+                                                                   lineColor)
+                                if (routeIndex >= 0)
+                                    placePage.showRoute(routeIndex)
+                                if (modelData.live)
+                                    departuresColumn.departures.track(modelData.tripId)
                             }
+
                             // Aligns the destinations of one- and three-digit lines.
-                            width: Math.max(implicitWidth, Theme.itemSizeExtraSmall)
-                            text: modelData.line
-                            font.bold: true
-                        }
-                        Label {
-                            anchors {
-                                left: lineLabel.right
-                                leftMargin: Theme.paddingMedium
-                                right: platformLabel.left
-                                rightMargin: Theme.paddingSmall
-                                verticalCenter: parent.verticalCenter
+                            Item {
+                                id: lineLabel
+                                x: Theme.horizontalPageMargin
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Math.max(lineBadge.width, Theme.iconSizeSmall + Theme.itemSizeExtraSmall)
+                                height: lineBadge.height
+
+                                LineBadge {
+                                    id: lineBadge
+                                    icon: modelData.icon
+                                    number: modelData.line
+                                    lineColor: departureRow.lineColor
+                                }
                             }
-                            text: modelData.destination
-                            truncationMode: TruncationMode.Fade
-                            font.strikeout: modelData.canceled
-                            color: modelData.canceled ? Theme.secondaryColor : Theme.primaryColor
-                        }
-                        Label {
-                            id: platformLabel
-                            anchors {
-                                right: timeLabel.left
-                                rightMargin: Theme.paddingMedium
-                                verticalCenter: parent.verticalCenter
+                            Label {
+                                anchors {
+                                    left: lineLabel.right
+                                    leftMargin: Theme.paddingMedium
+                                    right: platformLabel.left
+                                    rightMargin: Theme.paddingSmall
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                text: modelData.destination
+                                truncationMode: TruncationMode.Fade
+                                font.strikeout: modelData.canceled
+                                color: modelData.canceled ? Theme.secondaryColor : Theme.primaryColor
                             }
-                            text: modelData.platform
-                            font.pixelSize: Theme.fontSizeExtraSmall
-                            color: Theme.secondaryColor
-                        }
-                        Label {
-                            id: timeLabel
-                            anchors {
-                                right: parent.right
-                                rightMargin: Theme.horizontalPageMargin
-                                verticalCenter: parent.verticalCenter
+                            Label {
+                                id: platformLabel
+                                anchors {
+                                    right: timeLabel.left
+                                    rightMargin: Theme.paddingMedium
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                text: modelData.platform !== ""
+                                    ? appInfo.localized(modelData.train ? "departures_track" : "departures_platform",
+                                                        [modelData.platform])
+                                    : ""
+                                font.pixelSize: Theme.fontSizeExtraSmall
+                                color: Theme.secondaryColor
                             }
-                            text: modelData.canceled ? appInfo.localized("departures_canceled")
-                                : modelData.minutes === 0 ? appInfo.localized("departures_now")
-                                : modelData.minutes >= 60 ? modelData.time
-                                : appInfo.localized("departures_minutes", [String(modelData.minutes)])
-                            // Late ones stand out.
-                            color: modelData.canceled || modelData.delay > 0 ? Theme.errorColor : Theme.highlightColor
+                            Label {
+                                id: timeLabel
+                                anchors {
+                                    right: parent.right
+                                    rightMargin: Theme.horizontalPageMargin
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                text: modelData.canceled ? appInfo.localized("departures_canceled")
+                                    : modelData.minutes === 0 ? appInfo.localized("departures_now")
+                                    : modelData.minutes >= 60 ? modelData.time
+                                    : appInfo.localized("departures_minutes", [String(modelData.minutes)])
+                                // Late ones stand out.
+                                color: modelData.canceled || modelData.delay > 0 ? Theme.errorColor : Theme.highlightColor
+                            }
+                        }
+
+                        // Where the trip calls next, along a bar of the line's color.
+                        Item {
+                            width: parent.width
+                            height: departureItem.expanded ? tripStopsColumn.height + Theme.paddingSmall : 0
+                            visible: departureItem.expanded
+
+                            Rectangle {
+                                x: Theme.horizontalPageMargin + Theme.iconSizeSmall / 2
+                                width: Theme.paddingSmall / 2
+                                height: tripStopsColumn.height
+                                color: departureRow.lineColor !== "" ? departureRow.lineColor : Theme.highlightColor
+                                opacity: 0.8
+                            }
+                            Column {
+                                id: tripStopsColumn
+                                x: Theme.horizontalPageMargin + Theme.iconSizeSmall + Theme.paddingLarge
+                                width: parent.width - x - Theme.horizontalPageMargin
+
+                                BusyIndicator {
+                                    size: BusyIndicatorSize.ExtraSmall
+                                    running: visible
+                                    visible: departuresColumn.departures.tripStopsLoading
+                                             && departuresColumn.departures.tripStops.length === 0
+                                }
+                                Label {
+                                    width: parent.width
+                                    visible: text !== ""
+                                    text: {
+                                        var d = departuresColumn.departures
+                                        if (d.tripStopsLoading || d.tripStops.length > 0)
+                                            return ""
+                                        if (d.tripStopsStatus === StopDepartures.NoResult)
+                                            return appInfo.localized("departures_trip_stops_none")
+                                        return d.tripStopsStatus === StopDepartures.Ok
+                                            ? "" : appInfo.localized("departures_trip_stops_error")
+                                    }
+                                    wrapMode: Text.Wrap
+                                    font.pixelSize: Theme.fontSizeExtraSmall
+                                    color: Theme.secondaryColor
+                                }
+                                Repeater {
+                                    model: departureItem.expanded ? departuresColumn.departures.tripStops : []
+
+                                    BackgroundItem {
+                                        width: tripStopsColumn.width
+                                        height: Theme.itemSizeExtraSmall * 2 / 3
+                                        onClicked: placePage.selectStop(departureItem.departure.line,
+                                                                        departureItem.departure.destination,
+                                                                        modelData.lat, modelData.lon)
+
+                                        Row {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            spacing: Theme.paddingMedium
+
+                                            Label {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: modelData.time
+                                                font.pixelSize: Theme.fontSizeExtraSmall
+                                                color: modelData.realtime && modelData.delay > 0 ? Theme.errorColor
+                                                                                                 : Theme.highlightColor
+                                            }
+                                            Label {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                width: tripStopsColumn.width - x
+                                                text: modelData.name
+                                                truncationMode: TruncationMode.Fade
+                                                font.pixelSize: Theme.fontSizeSmall
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -731,7 +867,7 @@ MapPanel {
                                      + (canDeleteTrack ? 1 : 0)
 
         width: parent.width
-        visible: !panel.specialAction
+        visible: !panel.specialAction && !panel.minimized
 
         PlaceAction {
             visible: placePage.apiBackUrl !== ""

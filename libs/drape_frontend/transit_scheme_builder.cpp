@@ -701,8 +701,8 @@ void TransitSchemeBuilder::BuildFromRouteTransit(ref_ptr<dp::GraphicsContext> co
     {
       if (route.m_polyline.size() < 2)
         continue;
-      GenerateLine(context, route.m_polyline, pivot, info.m_color, 0.0f /* lineOffset */, kTransitLineHalfWidth, kDepth,
-                   batcher);
+      GenerateLine(context, route.m_polyline, pivot, route.m_color.value_or(info.m_color), 0.0f /* lineOffset */,
+                   kTransitLineHalfWidth, kDepth, batcher);
     }
 
     dp::Color const highlightColor = info.GetHighlightColor();

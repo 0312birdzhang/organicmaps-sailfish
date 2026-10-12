@@ -869,6 +869,7 @@ void FrontendRenderer::AcceptMessage(ref_ptr<Message> message)
   {
     ref_ptr<SetTransitSchemeMinZoomMessage> msg = message;
     m_transitSchemeRenderer->SetMinZoomLevel(msg->GetZoomLevel());
+    m_routeTransitShown = msg->IsRouteTransit();
     break;
   }
 
@@ -1702,7 +1703,11 @@ void FrontendRenderer::RenderTransitSchemeLayer(ScreenBase const & modelView)
   {
     DEBUG_LABEL(m_context, "Transit Scheme");
     m_context->Clear(dp::ClearBits::DepthBit, dp::kClearBitsStoreAll);
-    RenderTransitBackground();
+#ifdef OMIM_OS_SAILFISH
+    // The map around a stop's route stays as bright as it was.
+    if (!m_routeTransitShown)
+#endif
+      RenderTransitBackground();
     m_transitSchemeRenderer->RenderTransit(m_context, make_ref(m_gpuProgramManager), modelView,
                                            make_ref(m_postprocessRenderer), m_frameValues,
                                            make_ref(m_debugRectRenderer));

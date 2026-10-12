@@ -66,6 +66,8 @@ set(SRC
   search_model.hpp
   stop_departures.cpp
   stop_departures.hpp
+  transit_providers.cpp
+  transit_providers.hpp
   url_handler.cpp
   url_handler.hpp
   voice_guide.cpp
@@ -89,7 +91,7 @@ target_include_directories(${PROJECT_NAME}_lib PRIVATE ${SAILFISHAPP_INCLUDE_DIR
 target_link_libraries(${PROJECT_NAME}_lib
   PRIVATE
     Boost::headers
-    departures
+    live_transit
     map
     location_service
     Qt5::DBus
@@ -165,6 +167,7 @@ install(FILES
   "${ANDROID_SDK_RES}/drawable-xxxhdpi/ic_20px_route_planning_train.webp"
   "${ANDROID_SDK_RES}/drawable-xxxhdpi/ic_20px_route_planning_lightrail.webp"
   "${ANDROID_SDK_RES}/drawable-xxxhdpi/ic_20px_route_planning_monorail.webp"
+  icons/routing/ic_20px_route_planning_ferry.svg
   DESTINATION ${APP_DATA_DIR}/icons/routing)
 set(TURNS straight right right_sharp right_slight left left_sharp left_slight uleft uright finish)
 list(TRANSFORM TURNS PREPEND "${ANDROID_SDK_RES}/drawable-xxxhdpi/ic_turn_")

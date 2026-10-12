@@ -2,7 +2,7 @@
 
 #include "sailfish/file_log.hpp"
 #include "sailfish/helpers.hpp"
-#include "sailfish/stop_departures.hpp"
+#include "sailfish/transit_providers.hpp"
 
 #include "map/framework.hpp"
 
@@ -204,6 +204,26 @@ QString AppSettings::departuresKey() const
 void AppSettings::setDeparturesKey(QString const & key)
 {
   SaveUiSetting(kTrafiklabKeySetting, key.trimmed().toStdString());
+}
+
+QString AppSettings::vehiclesKey() const
+{
+  return QString::fromStdString(LoadSetting(kTrafiklabVehiclesKeySetting, std::string()));
+}
+
+void AppSettings::setVehiclesKey(QString const & key)
+{
+  SaveUiSetting(kTrafiklabVehiclesKeySetting, key.trimmed().toStdString());
+}
+
+QString AppSettings::journeysKey() const
+{
+  return QString::fromStdString(LoadSetting(kTrafiklabResRobotKeySetting, std::string()));
+}
+
+void AppSettings::setJourneysKey(QString const & key)
+{
+  SaveUiSetting(kTrafiklabResRobotKeySetting, key.trimmed().toStdString());
 }
 
 QString AppSettings::mapLanguageName() const

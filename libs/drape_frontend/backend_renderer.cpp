@@ -539,9 +539,10 @@ void BackendRenderer::AcceptMessage(ref_ptr<Message> message)
     // (e.g. stop title overlays linger after switching to another route).
     ClearRouteTransitData();
     // Propagate the route's preferred min visible zoom to the renderer's scheme-visible gate.
-    m_commutator->PostMessage(ThreadsCommutator::RenderThread,
-                              make_unique_dp<SetTransitSchemeMinZoomMessage>(msg->GetInfo().m_minZoomLevel),
-                              MessagePriority::Normal);
+    m_commutator->PostMessage(
+        ThreadsCommutator::RenderThread,
+        make_unique_dp<SetTransitSchemeMinZoomMessage>(msg->GetInfo().m_minZoomLevel, true /* routeTransit */),
+        MessagePriority::Normal);
     // Use a default-constructed (invalid) MwmId as a sentinel key so the frontend renderer can
     // drop only the route's render data via Clear(MwmId{}) when hiding.
     m_transitBuilder->BuildFromRouteTransit(m_context, MwmSet::MwmId{}, msg->GetInfo(), m_texMng);
@@ -552,9 +553,10 @@ void BackendRenderer::AcceptMessage(ref_ptr<Message> message)
   {
     ClearRouteTransitData();
     // Restore the renderer's default min zoom so a subsequent subway-scheme view starts clean.
-    m_commutator->PostMessage(ThreadsCommutator::RenderThread,
-                              make_unique_dp<SetTransitSchemeMinZoomMessage>(kTransitSchemeMinZoomLevel),
-                              MessagePriority::Normal);
+    m_commutator->PostMessage(
+        ThreadsCommutator::RenderThread,
+        make_unique_dp<SetTransitSchemeMinZoomMessage>(kTransitSchemeMinZoomLevel, false /* routeTransit */),
+        MessagePriority::Normal);
     break;
   }
 

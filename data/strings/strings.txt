@@ -44670,6 +44670,72 @@ ru = %@ мин
 sv = %@ min
 uk = %@ хв
 
+[departures_platform]
+comment = Sailfish OS: the platform or stop position a bus, tram or metro departs from, kept short
+tags = sailfish
+en = Pl. %@
+de = Steig %@
+es = Andén %@
+fr = Quai %@
+ru = Платф. %@
+sv = Läge %@
+uk = Платф. %@
+
+[departures_track]
+comment = Sailfish OS: the track a train departs from, kept short
+tags = sailfish
+en = Track %@
+de = Gleis %@
+es = Vía %@
+fr = Voie %@
+ru = Путь %@
+sv = Spår %@
+uk = Колія %@
+
+[journeys_earlier]
+comment = Sailfish OS: loads the transit journeys leaving before the listed ones
+tags = sailfish
+en = Earlier
+de = Früher
+es = Antes
+fr = Plus tôt
+ru = Раньше
+sv = Tidigare
+uk = Раніше
+
+[journeys_later]
+comment = Sailfish OS: loads the transit journeys leaving after the listed ones
+tags = sailfish
+en = Later
+de = Später
+es = Después
+fr = Plus tard
+ru = Позже
+sv = Senare
+uk = Пізніше
+
+[journey_towards]
+comment = Sailfish OS: the last stop of a bus or train line in a transit journey's details
+tags = sailfish
+en = towards %@
+de = Richtung %@
+es = dirección %@
+fr = direction %@
+ru = в направлении %@
+sv = mot %@
+uk = у напрямку %@
+
+[journey_walk]
+comment = Sailfish OS: a walk in a transit journey's details, with its distance and time
+tags = sailfish
+en = Walk %@
+de = %@ zu Fuß
+es = Caminar %@
+fr = Marcher %@
+ru = Пешком %@
+sv = Gå %@
+uk = Пішки %@
+
 [departures_canceled]
 comment = Sailfish OS: a departure that was cancelled
 tags = sailfish
@@ -44691,6 +44757,28 @@ fr = Aucun départ prochainement
 ru = Ближайших отправлений нет
 sv = Inga avgångar inom kort
 uk = Найближчих відправлень немає
+
+[departures_trip_stops_none]
+comment = Sailfish OS: under a departure, the provider doesn't list where its trip calls next
+tags = sailfish
+en = No stops listed for this trip
+de = Für diese Fahrt sind keine Halte angegeben
+es = No hay paradas para este viaje
+fr = Aucun arrêt indiqué pour ce trajet
+ru = Для этого рейса остановки не указаны
+sv = Inga hållplatser angivna för den här turen
+uk = Для цього рейсу зупинки не вказано
+
+[departures_trip_stops_error]
+comment = Sailfish OS: under a departure, where its trip calls next couldn't be loaded
+tags = sailfish
+en = Couldn't load the stops
+de = Die Halte konnten nicht geladen werden
+es = No se pudieron cargar las paradas
+fr = Impossible de charger les arrêts
+ru = Не удалось загрузить остановки
+sv = Det gick inte att läsa in hållplatserna
+uk = Не вдалося завантажити зупинки
 
 [departures_stop_not_found]
 comment = Sailfish OS: the stop on the map wasn't found in the live departures data
@@ -44757,6 +44845,72 @@ fr = Affiche les prochains départs aux arrêts en Suède, avec les retards. Cha
 ru = Показывает ближайшие отправления на остановках в Швеции с учётом задержек. Каждая открытая остановка отправляется в Trafiklab. Бесплатный ключ API для Trafiklab Realtime APIs можно получить на trafiklab.se.
 sv = Visar nästa avgångar vid hållplatser i Sverige, med förseningar. Varje hållplats du öppnar skickas till Trafiklab. Skaffa en gratis API-nyckel för Trafiklab Realtime APIs på trafiklab.se.
 uk = Показує найближчі відправлення на зупинках у Швеції із затримками. Кожна відкрита зупинка надсилається до Trafiklab. Безкоштовний ключ API для Trafiklab Realtime APIs можна отримати на trafiklab.se.
+
+[pref_departures_vehicles_title]
+comment = Sailfish OS: section header for following departures' vehicles on the map
+tags = sailfish
+en = Live vehicles
+de = Live-Fahrzeuge
+es = Vehículos en tiempo real
+fr = Véhicules en temps réel
+ru = Транспорт в реальном времени
+sv = Fordon i realtid
+uk = Транспорт у реальному часі
+
+[pref_departures_vehicles_summary]
+comment = Sailfish OS: explains the live vehicles setting and which key it needs
+tags = sailfish
+en = Tap a departure to follow its vehicle on the map, in Stockholm. Needs a second free key, for GTFS Regional Realtime, from the same Trafiklab project.
+de = Tippe auf eine Abfahrt, um ihr Fahrzeug auf der Karte zu verfolgen, in Stockholm. Dafür ist ein zweiter kostenloser Schlüssel für GTFS Regional Realtime aus demselben Trafiklab-Projekt nötig.
+es = Toca una salida para seguir su vehículo en el mapa, en Estocolmo. Necesita una segunda clave gratuita, para GTFS Regional Realtime, del mismo proyecto de Trafiklab.
+fr = Touchez un départ pour suivre son véhicule sur la carte, à Stockholm. Nécessite une seconde clé gratuite, pour GTFS Regional Realtime, du même projet Trafiklab.
+ru = Нажмите на отправление, чтобы следить за его транспортом на карте, в Стокгольме. Нужен второй бесплатный ключ, для GTFS Regional Realtime, из того же проекта Trafiklab.
+sv = Tryck på en avgång för att följa fordonet på kartan, i Stockholm. Kräver en andra gratis nyckel, för GTFS Regional Realtime, från samma Trafiklab-projekt.
+uk = Торкніться відправлення, щоб стежити за його транспортом на мапі, у Стокгольмі. Потрібен другий безкоштовний ключ, для GTFS Regional Realtime, з того самого проєкту Trafiklab.
+
+[pref_departures_vehicles_key]
+comment = Sailfish OS: text field for the API key of the vehicle positions
+tags = sailfish
+en = GTFS Regional Realtime key
+de = GTFS-Regional-Realtime-Schlüssel
+es = Clave de GTFS Regional Realtime
+fr = Clé GTFS Regional Realtime
+ru = Ключ GTFS Regional Realtime
+sv = Nyckel för GTFS Regional Realtime
+uk = Ключ GTFS Regional Realtime
+
+[pref_departures_journeys_title]
+comment = Sailfish OS: section header for transit routes from an online journey planner
+tags = sailfish
+en = Transit routes
+de = ÖPNV-Routen
+es = Rutas en transporte público
+fr = Itinéraires en transports en commun
+ru = Маршруты на общественном транспорте
+sv = Kollektivtrafikresor
+uk = Маршрути громадським транспортом
+
+[pref_departures_journeys_summary]
+comment = Sailfish OS: explains the online journey planner setting and which key it needs
+tags = sailfish
+en = Plans transit routes in Sweden with the timetables of all operators. The start and destination of each transit route are sent to Trafiklab. Needs a third free key, for ResRobot v2.1, from the same Trafiklab project.
+de = Plant ÖPNV-Routen in Schweden mit den Fahrplänen aller Verkehrsunternehmen. Start und Ziel jeder ÖPNV-Route werden an Trafiklab gesendet. Dafür ist ein dritter kostenloser Schlüssel für ResRobot v2.1 aus demselben Trafiklab-Projekt nötig.
+es = Planifica rutas en transporte público en Suecia con los horarios de todos los operadores. El origen y el destino de cada ruta se envían a Trafiklab. Necesita una tercera clave gratuita, para ResRobot v2.1, del mismo proyecto de Trafiklab.
+fr = Planifie des itinéraires en transports en commun en Suède avec les horaires de tous les opérateurs. Le départ et la destination de chaque itinéraire sont envoyés à Trafiklab. Nécessite une troisième clé gratuite, pour ResRobot v2.1, du même projet Trafiklab.
+ru = Строит маршруты на общественном транспорте в Швеции по расписаниям всех перевозчиков. Начало и конец каждого маршрута отправляются в Trafiklab. Нужен третий бесплатный ключ, для ResRobot v2.1, из того же проекта Trafiklab.
+sv = Planerar kollektivtrafikresor i Sverige med alla trafikbolags tidtabeller. Start och mål för varje resa skickas till Trafiklab. Kräver en tredje gratis nyckel, för ResRobot v2.1, från samma Trafiklab-projekt.
+uk = Будує маршрути громадським транспортом у Швеції за розкладами всіх перевізників. Початок і кінець кожного маршруту надсилаються до Trafiklab. Потрібен третій безкоштовний ключ, для ResRobot v2.1, з того самого проєкту Trafiklab.
+
+[pref_departures_journeys_key]
+comment = Sailfish OS: text field for the API key of the online journey planner
+tags = sailfish
+en = ResRobot key
+de = ResRobot-Schlüssel
+es = Clave de ResRobot
+fr = Clé ResRobot
+ru = Ключ ResRobot
+sv = Nyckel för ResRobot
+uk = Ключ ResRobot
 
 [pref_departures_key]
 comment = Sailfish OS: text field for the API key of the live departures provider

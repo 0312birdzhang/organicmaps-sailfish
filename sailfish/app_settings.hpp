@@ -30,6 +30,10 @@ class AppSettings : public QObject
   Q_PROPERTY(QVariantList mapLanguages READ mapLanguages CONSTANT)
   // Live departures at stops are shown with a key; empty turns them off.
   Q_PROPERTY(QString departuresKey READ departuresKey WRITE setDeparturesKey NOTIFY changed)
+  // Departures can be followed on the map with a key for the vehicle positions.
+  Q_PROPERTY(QString vehiclesKey READ vehiclesKey WRITE setVehiclesKey NOTIFY changed)
+  // Transit routes come from an online planner with a key for it.
+  Q_PROPERTY(QString journeysKey READ journeysKey WRITE setJourneysKey NOTIFY changed)
   Q_PROPERTY(QString donateUrl READ donateUrl CONSTANT)
   // The Promo the help button shows instead of the logo.
   Q_PROPERTY(int helpPromo READ helpPromo NOTIFY changed)
@@ -129,6 +133,10 @@ public:
   QVariantList mapLanguages() const;
   QString departuresKey() const;
   void setDeparturesKey(QString const & key);
+  QString vehiclesKey() const;
+  void setVehiclesKey(QString const & key);
+  QString journeysKey() const;
+  void setJourneysKey(QString const & key);
   QString donateUrl() const;
   int helpPromo() const;
   bool buildings3d() const;

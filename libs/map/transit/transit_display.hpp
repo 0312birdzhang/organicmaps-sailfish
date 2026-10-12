@@ -136,6 +136,22 @@ struct SubrouteSegmentParams
   MwmSet::MwmId m_mwmId;
 };
 
+// A leg of a journey from an online planner, drawn like the routes of the transit router.
+struct ExternalTransitLeg
+{
+  TransitType m_type = TransitType::Pedestrian;
+  // The line, for rides.
+  std::string m_number;
+  // "#RRGGBB", or empty for the route color.
+  std::string m_color;
+  // Mercator; a ride boards at the first point and alights at the last.
+  std::vector<m2::PointD> m_points;
+  std::string m_fromName;
+  std::string m_toName;
+  double m_distanceInMeters = 0.0;
+  int m_timeInSec = 0;
+};
+
 class TransitRouteDisplay
 {
 public:
@@ -147,6 +163,7 @@ public:
                       std::map<std::string, m2::PointF> const & transitSymbolSizes);
 
   bool ProcessSubroute(std::vector<routing::RouteSegment> const & segments, df::Subroute & subroute);
+  bool ProcessExternalRoute(std::vector<ExternalTransitLeg> const & legs, df::Subroute & subroute);
   void CreateTransitMarks();
 
   TransitRouteInfo const & GetRouteInfo();

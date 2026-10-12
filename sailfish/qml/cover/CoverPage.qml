@@ -1,5 +1,6 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
+import "../pages"
 
 CoverBackground {
     id: cover
@@ -9,12 +10,23 @@ CoverBackground {
     readonly property QtObject routing: map ? map.routing : null
     readonly property var navigation: routing ? routing.navigation : ({})
     readonly property var position: map ? map.positionInfo : ({})
+    readonly property QtObject departures: map ? map.placePage.departures : null
+    // The line picked at the open stop.
+    readonly property var line: departures && map.placePage.open ? departures.selected : ({})
     readonly property string mode: !map ? "idle"
         : routing.navigating ? "navigation"
         : map.trackRecording ? "recording"
         : downloads.inProgress && downloads.downloadingName !== "" ? "download"
+        : line.line !== undefined ? "departures"
         : routing.built ? "route"
         : "idle"
+
+    function departureText(departure) {
+        return departure.canceled ? appInfo.localized("departures_canceled")
+            : departure.minutes === 0 ? appInfo.localized("departures_now")
+            : departure.minutes >= 60 ? departure.time
+            : appInfo.localized("departures_minutes", [String(departure.minutes)])
+    }
 
     signal activateRequested()
 
@@ -50,6 +62,13 @@ CoverBackground {
         }
         spacing: Theme.paddingSmall
 
+        LineBadge {
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: cover.mode === "departures"
+            icon: cover.line.icon || ""
+            number: cover.line.line || ""
+            lineColor: cover.line.color || ""
+        }
         Icon {
             anchors.horizontalCenter: parent.horizontalCenter
             visible: cover.mode === "navigation"
@@ -79,11 +98,14 @@ CoverBackground {
                 case "recording": return appInfo.localized("track_recording_title")
                 case "download": return Math.round(downloads.downloadingProgress * 100) + "%"
                 case "route": return routing.summary
+                case "departures":
+                    var next = cover.line.next || []
+                    return next.length > 0 ? cover.departureText(next[0]) : appInfo.localized("departures_none")
                 default: return position.address || ""
                 }
             }
             font.pixelSize: cover.mode === "idle" || cover.mode === "route" ? Theme.fontSizeMedium : Theme.fontSizeLarge
-            font.bold: cover.mode === "navigation" || cover.mode === "download"
+            font.bold: cover.mode === "navigation" || cover.mode === "download" || cover.mode === "departures"
             wrapMode: Text.Wrap
             maximumLineCount: 3
             elide: Text.ElideRight
@@ -100,6 +122,7 @@ CoverBackground {
                 case "route":
                     var points = routing.points
                     return points.length > 0 ? "→ " + points[points.length - 1].title : ""
+                case "departures": return "→ " + cover.line.destination
                 default: return position.coordinates || ""
                 }
             }
@@ -116,6 +139,10 @@ CoverBackground {
             text: {
                 switch (cover.mode) {
                 case "navigation": return navigation.arrival ? "⚑ " + navigation.arrival : ""
+                // The ones after, and where.
+                case "departures":
+                    var later = (cover.line.next || []).slice(1).map(cover.departureText).join("   ")
+                    return later !== "" ? later + "\n" + cover.departures.stopName : cover.departures.stopName
                 case "idle":
                     return [position.altitude, position.speed].filter(function(part) { return !!part }).join("   ")
                 default: return ""

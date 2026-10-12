@@ -601,6 +601,84 @@ bool TransitRouteDisplay::ProcessSubroute(std::vector<routing::RouteSegment> con
   return isValidSubroute;
 }
 
+bool TransitRouteDisplay::ProcessExternalRoute(std::vector<ExternalTransitLeg> const & legs, df::Subroute & subroute)
+{
+  subroute.m_maxPixelWidth = m_maxSubrouteWidth;
+  subroute.m_styleType = df::SubrouteStyleType::Multiple;
+  subroute.m_headFakeDistance = -1.0;
+  subroute.m_tailFakeDistance = 1.0;
+
+  double distance = 0.0;
+  int time = 0;
+  // Each ride's stops get a marker on the line and a mark with the line's icon and the stop's name.
+  auto const addStop = [&](m2::PointD const & point, std::string const & name, TransitType type,
+                           std::string const & color, std::string const & textColor)
+  {
+    df::SubrouteMarker marker;
+    marker.m_position = point;
+    marker.m_distance = distance;
+    marker.m_scale = kStopMarkerScale;
+    marker.m_colors.push_back(color);
+    marker.m_innerColor = color;
+    subroute.m_markers.push_back(std::move(marker));
+
+    TransitMarkInfo mark;
+    mark.m_type = TransitMarkInfo::Type::KeyStop;
+    mark.m_point = point;
+    mark.m_symbolName = kTransitSymbols.at(type);
+    mark.m_color = color;
+    if (!name.empty())
+      mark.m_titles.emplace_back(name, textColor);
+    m_transitMarks.push_back(std::move(mark));
+  };
+
+  for (auto const & leg : legs)
+  {
+    if (leg.m_points.empty())
+      continue;
+    if (subroute.m_polyline.GetSize() == 0)
+      subroute.m_polyline.Add(leg.m_points.front());
+
+    if (leg.m_type == TransitType::Pedestrian)
+    {
+      m_routeInfo.AddStep(TransitStepInfo(TransitType::Pedestrian, leg.m_distanceInMeters, leg.m_timeInSec));
+      for (auto const & point : leg.m_points)
+        if (point != subroute.m_polyline.Back())
+          AddTransitPedestrianSegment(point, subroute);
+    }
+    else
+    {
+      auto const color = leg.m_color.empty() ? df::kRouteColor : df::GetTransitColorName(leg.m_color);
+      auto const textColor = leg.m_color.empty() ? df::kRouteColor : df::GetTransitTextColorName(leg.m_color);
+      m_routeInfo.AddStep(
+          TransitStepInfo(leg.m_type, leg.m_distanceInMeters, leg.m_timeInSec, leg.m_number, ColorToARGB(color)));
+      // From where the walk to the stop ended.
+      if (leg.m_points.front() != subroute.m_polyline.Back())
+        AddTransitGateSegment(leg.m_points.front(), color, subroute);
+      addStop(leg.m_points.front(), leg.m_fromName, leg.m_type, color, textColor);
+
+      df::SubrouteStyle style(color);
+      style.m_startIndex = subroute.m_polyline.GetSize() - 1;
+      for (size_t i = 1; i < leg.m_points.size(); ++i)
+        subroute.m_polyline.Add(leg.m_points[i]);
+      style.m_endIndex = subroute.m_polyline.GetSize() - 1;
+      if (style.m_endIndex > style.m_startIndex)
+        subroute.AddStyle(style);
+
+      distance += leg.m_distanceInMeters;
+      addStop(leg.m_points.back(), leg.m_toName, leg.m_type, color, textColor);
+      time += leg.m_timeInSec;
+      continue;
+    }
+    distance += leg.m_distanceInMeters;
+    time += leg.m_timeInSec;
+  }
+
+  m_routeInfo.m_totalDistInMeters = distance;
+  m_routeInfo.m_totalTimeInSec = time;
+  return subroute.m_polyline.GetSize() > 1;
+}
+
 void FillMwmTransitSubway(std::unique_ptr<TransitDisplayInfo> & mwmTransit, routing::TransitInfo const & transitInfo,
                           MwmSet::MwmId const & mwmId)
 {

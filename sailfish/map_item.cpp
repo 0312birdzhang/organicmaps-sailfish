@@ -35,6 +35,7 @@
 #include <QCompass>
 #include <QDateTime>
 #include <QGuiApplication>
+#include <QStyleHints>
 #include <QOpenGLContext>
 #include <QPointer>
 #include <QQuickWindow>
@@ -121,6 +122,12 @@ MapItem::MapItem(QQuickItem * parent)
 
   m_simulationTimer.setInterval(1000);
   connect(&m_simulationTimer, &QTimer::timeout, this, &MapItem::SimulateLocation);
+
+  m_framework.SetViewportListener([this](ScreenBase const & screen)
+  {
+    m_screen = screen;
+    emit viewportChanged();
+  });
 }
 
 MapItem::~MapItem()
@@ -130,6 +137,7 @@ MapItem::~MapItem()
   m_framework.GetIsolinesManager().SetStateListener({});
   m_framework.SetCurrentCountryChangedListener({});
   m_framework.SetMyPositionModeListener(nullptr);
+  m_framework.SetViewportListener(nullptr);
   m_framework.GetStorage().Unsubscribe(m_storageSlot);
   m_locationService->Stop();
   if (!m_contextFactory)
@@ -477,6 +485,20 @@ bool MapItem::needUpdateForRoutes() const
   return m_framework.NeedUpdateForRoutes();
 }
 
+QPointF MapItem::geoToScreen(double lat, double lon) const
+{
+  auto pt = m_screen.GtoP(mercator::FromLatLon(lat, lon));
+  if (m_screen.isPerspective())
+    pt = m_screen.PtoP3d(pt);
+  return {pt.x, pt.y};
+}
+
+void MapItem::centerOn(double lat, double lon, bool animate)
+{
+  m_framework.SetViewportCenter(mercator::FromLatLon(lat, lon), -1 /* zoomLevel */, animate,
+                                true /* trackVisibleViewport */);
+}
+
 bool MapItem::isolinesNeedZoom() const
 {
   auto const & manager = m_framework.GetIsolinesManager();
@@ -812,10 +834,26 @@ void MapItem::touchEvent(QTouchEvent * event)
   }
   touchEvent.SetTouchType(type);
   touchEvent.SetFirstMaskedPointer(maskedPointer);
+  if (type != df::TouchEvent::TOUCH_UP)
+    DetectPan(points[0].pos(), type == df::TouchEvent::TOUCH_DOWN && points.size() == 1);
   m_framework.TouchEvent(touchEvent);
   m_heldTouches = held;
   m_touchActive = hasHeld;
   event->accept();
+}
+
+void MapItem::DetectPan(QPointF const & pos, bool down)
+{
+  if (down)
+  {
+    m_pressPos = pos;
+    m_panning = false;
+    return;
+  }
+  if (m_panning || (pos - m_pressPos).manhattanLength() < QGuiApplication::styleHints()->startDragDistance())
+    return;
+  m_panning = true;
+  emit panStarted();
 }
 
 void MapItem::CancelTouch()
@@ -850,6 +888,8 @@ void MapItem::SendMouseTouch(QMouseEvent * event, df::TouchEvent::ETouchType tou
   df::TouchEvent touchEvent;
   touchEvent.SetTouchType(touchType);
   touchEvent.SetFirstTouch(touch);
+  if (touchType != df::TouchEvent::TOUCH_UP)
+    DetectPan(event->localPos(), touchType == df::TouchEvent::TOUCH_DOWN);
   m_framework.TouchEvent(touchEvent);
   m_heldTouches = touchEvent;
   m_touchActive = touchType != df::TouchEvent::TOUCH_UP;

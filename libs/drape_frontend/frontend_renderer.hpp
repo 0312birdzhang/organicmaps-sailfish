@@ -416,6 +416,8 @@ private:
 
   bool m_trafficEnabled;
   bool m_transitSchemeEnabled = false;
+  // A route of a stop is shown on the transit scheme.
+  bool m_routeTransitShown = false;
 
   drape_ptr<OverlaysTracker> m_overlaysTracker;
   OverlaysShowStatsCallback m_overlaysShowStatsCallback;

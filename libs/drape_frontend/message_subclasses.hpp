@@ -1258,14 +1258,20 @@ public:
 class SetTransitSchemeMinZoomMessage : public Message
 {
 public:
-  explicit SetTransitSchemeMinZoomMessage(int zoomLevel) : m_zoomLevel(zoomLevel) {}
+  SetTransitSchemeMinZoomMessage(int zoomLevel, bool routeTransit)
+    : m_zoomLevel(zoomLevel)
+    , m_routeTransit(routeTransit)
+  {}
 
   Type GetType() const override { return Type::SetTransitSchemeMinZoom; }
 
   int GetZoomLevel() const { return m_zoomLevel; }
+  // A route of a stop is shown, rather than the scheme.
+  bool IsRouteTransit() const { return m_routeTransit; }
 
 private:
   int m_zoomLevel;
+  bool m_routeTransit;
 };
 
 class DrapeApiAddLinesMessage : public Message

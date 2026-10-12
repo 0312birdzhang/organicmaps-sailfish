@@ -6,6 +6,7 @@
 
 #include "geometry/point2d.hpp"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -38,6 +39,8 @@ struct TransitInfo
   struct Route
   {
     Polyline m_polyline;
+    /// Of its own line when several are shown, instead of m_color.
+    std::optional<dp::Color> m_color;
   };
 
   struct Stop

@@ -61,6 +61,7 @@
 #include "std/target_os.hpp"
 
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -497,6 +498,8 @@ private:
     FeatureID m_featureId;
     uint32_t m_relID = 0;
   };
+  // RouteTransitSelection::m_relID of all the stop's routes.
+  static uint32_t constexpr kAllRoutesRelID = std::numeric_limits<uint32_t>::max();
 
   std::optional<RouteTransitSelection> m_routeTransitSelection;
 
@@ -512,6 +515,8 @@ public:
   // Builds a TransitInfo (lines + stops) for @p relID relative to the current place page's feature
   // and shows it on the transit scheme layer (with the usual map dim).
   void ShowRouteTransit(uint32_t relID);
+  // Shows all the routes of the current place page's stop at once, each in its color, without moving the viewport.
+  void ShowStopRoutesTransit();
   // Returns the ref string of the currently selected transit route, or empty if none.
   std::string GetActiveTransitRouteRef() const;
   // Is called on PT PP close. Clears drape's transit scheme if ShowRouteTransit above was called before.

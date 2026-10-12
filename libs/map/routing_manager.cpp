@@ -834,6 +834,39 @@ bool RoutingManager::InsertRoute(RoutesResult const & result)
   return hasDrivingOptionsWarning;
 }
 
+void RoutingManager::InsertExternalTransitRoute(std::vector<ExternalTransitLeg> const & legs)
+{
+  if (!m_drapeEngine)
+    return;
+
+  RemoveRoute(false /* deactivateFollowing */);
+
+  auto display = std::make_shared<TransitRouteDisplay>(*m_transitReadManager, [this](routing::NumMwmId numMwmId)
+  { return GetMwmId(numMwmId); }, m_callbacks.m_stringsBundleGetter, m_bmManager, m_transitSymbolSizes);
+  auto subroute = make_unique_dp<df::Subroute>();
+  subroute->m_routeType = df::RouteType::Transit;
+  if (!display->ProcessExternalRoute(legs, *subroute))
+    return;
+
+  auto const subrouteId =
+      m_drapeEngine.SafeCallWithResult(&df::DrapeEngine::AddSubroute, df::SubrouteConstPtr(subroute.release()));
+  {
+    std::lock_guard<std::mutex> lock(m_drapeSubroutesMutex);
+    m_drapeSubroutes.push_back(subrouteId);
+    m_transitRouteInfo = display->GetRouteInfo();
+  }
+  // After the marks that RemoveRoute() clears on the GUI thread.
+  GetPlatform().RunTask(Platform::Thread::Gui, [display = std::move(display)]() { display->CreateTransitMarks(); });
+
+  m2::RectD routeRect;
+  for (auto const & leg : legs)
+    for (auto const & point : leg.m_points)
+      routeRect.Add(point);
+  routeRect.Scale(kRouteScaleMultiplier);
+  m_drapeEngine.SafeCall(&df::DrapeEngine::SetModelViewRect, routeRect, true /* applyRotation */, -1 /* zoom */,
+                         true /* isAnim */, true /* useVisibleViewport */);
+}
+
 void RoutingManager::InsertSingleRoute(RouteBase const & route, bool isActive, double depthOffset,
                                        std::shared_ptr<TransitRouteDisplay> const & transitRouteDisplay,
                                        RoadWarningsCollection & roadWarnings)

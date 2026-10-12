@@ -13,6 +13,8 @@
 
 #include "coding/point_coding.hpp"
 
+#include "geometry/mercator.hpp"
+#include "geometry/parametrized_segment.hpp"
 #include "geometry/spatial_hash_grid.hpp"
 
 #include "defines.hpp"
@@ -161,6 +163,43 @@ void ToPolyline(Geometry const & g, df::Polyline & poly)
   poly.reserve(g.Size());
   for (auto const & p : g.m_points)
     poly.push_back(p.GetPoint());
+}
+
+bool IsOnTrack(m2::PointD const & point, df::Polyline const & track)
+{
+  // Stop positions and stations lie a little beside the track.
+  double const kMaxDistance = mercator::MetersToMercator(60.0);
+  for (size_t i = 1; i < track.size(); ++i)
+    if (m2::ParametrizedSegment<m2::PointD>(track[i - 1], track[i]).SquaredDistanceToPoint(point) <=
+        kMaxDistance * kMaxDistance)
+    {
+      return true;
+    }
+  return false;
+}
+
+// Joins the consecutive stops which no track runs between, e.g. through the tunnels that the maps have no
+// geometry of.
+void JoinStopsOffTrack(df::TransitInfo & info)
+{
+  auto const & stops = info.m_stops;
+  std::vector<df::Polyline> gaps;
+  for (size_t i = 1; i < stops.size(); ++i)
+  {
+    auto const & from = stops[i - 1].m_pos;
+    auto const & to = stops[i].m_pos;
+    bool const joined = std::ranges::any_of(info.m_routes, [&](df::TransitInfo::Route const & route)
+    { return IsOnTrack(from, route.m_polyline) && IsOnTrack(to, route.m_polyline); });
+    if (joined)
+      continue;
+    // Continues the previous gap.
+    if (!gaps.empty() && gaps.back().back() == from)
+      gaps.back().push_back(to);
+    else
+      gaps.push_back({from, to});
+  }
+  for (auto & gap : gaps)
+    info.m_routes.push_back({std::move(gap)});
 }
 }  // namespace
 }  // namespace relation_track_merger
@@ -510,6 +549,14 @@ std::optional<df::TransitInfo> RelationTrackBuilder::BuildTransitInfo(uint32_t r
       info.m_stops.front().m_highlight = true;
       info.m_stops.back().m_highlight = true;
     }
+  }
+
+  // The stops are in their order along the route only from one relation.
+  using Type = feature::RouteRelationBase::Type;
+  if (auto const type = rel.GetType();
+      isSingleMWM && (type == Type::Subway || type == Type::Train || type == Type::LightRail || type == Type::Monorail))
+  {
+    relation_track_merger::JoinStopsOffTrack(info);
   }
 
   if (info.IsEmpty())

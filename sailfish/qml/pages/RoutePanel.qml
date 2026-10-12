@@ -226,33 +226,10 @@ MapPanel {
                                     color: Theme.secondaryColor
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
-                                Rectangle {
-                                    width: stepRow.width + 2 * Theme.paddingSmall
-                                    height: Theme.iconSizeSmall + Theme.paddingSmall
-                                    radius: Theme.paddingSmall
-                                    color: modelData.color || Theme.rgba(Theme.primaryColor, 0.15)
-
-                                    Row {
-                                        id: stepRow
-                                        anchors.centerIn: parent
-                                        spacing: Theme.paddingSmall
-
-                                        Icon {
-                                            visible: !!modelData.icon
-                                            source: modelData.icon ? "../../icons/routing/" + modelData.icon : ""
-                                            sourceSize: Qt.size(Theme.iconSizeExtraSmall, Theme.iconSizeExtraSmall)
-                                            color: modelData.textColor || Theme.primaryColor
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                        Label {
-                                            visible: !!modelData.number
-                                            text: modelData.number || ""
-                                            color: modelData.textColor || Theme.primaryColor
-                                            font.pixelSize: Theme.fontSizeExtraSmall
-                                            font.bold: true
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                    }
+                                LineBadge {
+                                    icon: modelData.icon || ""
+                                    number: modelData.number || ""
+                                    lineColor: modelData.color || ""
                                 }
                             }
                         }
@@ -321,6 +298,191 @@ MapPanel {
                         }
                     }
                 }
+            }
+
+            // The journeys from an online planner, to pick another one or look closer at the picked one.
+            Column {
+                id: journeyList
+
+                // The picked journey's legs and stops are shown.
+                property bool expanded
+                property bool loadingLater
+
+                function loadMore(later) {
+                    loadingLater = later
+                    if (later)
+                        routing.loadLaterJourneys()
+                    else
+                        routing.loadEarlierJourneys()
+                }
+
+                width: parent.width
+                visible: routing.journeys.length > 0
+
+                MoreJourneysItem {
+                    visible: routing.canLoadEarlierJourneys
+                    text: appInfo.localized("journeys_earlier")
+                    busy: routing.loadingJourneys && !journeyList.loadingLater
+                    onClicked: journeyList.loadMore(false)
+                }
+                Repeater {
+                    model: routing.journeys
+
+                    Column {
+                        readonly property bool selected: index === routing.selectedJourney
+
+                        width: parent.width
+
+                        BackgroundItem {
+                            width: parent.width
+                            height: Theme.itemSizeExtraSmall
+                            highlighted: down || parent.selected
+                            onClicked: {
+                                if (parent.selected) {
+                                    journeyList.expanded = !journeyList.expanded
+                                    return
+                                }
+                                routing.selectJourney(index)
+                                journeyList.expanded = true
+                            }
+
+                            Label {
+                                id: journeyTimes
+                                anchors {
+                                    left: parent.left
+                                    leftMargin: Theme.horizontalPageMargin
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                text: modelData.departure + " – " + modelData.arrival
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: index === routing.selectedJourney
+                            }
+                            Label {
+                                id: journeyDuration
+                                anchors {
+                                    left: journeyTimes.right
+                                    leftMargin: Theme.paddingMedium
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                text: modelData.duration
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.secondaryColor
+                            }
+                            // The lines, without the walks.
+                            Row {
+                                anchors {
+                                    left: journeyDuration.right
+                                    leftMargin: Theme.paddingMedium
+                                    right: parent.right
+                                    rightMargin: Theme.horizontalPageMargin
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                spacing: Theme.paddingSmall
+                                clip: true
+
+                                Repeater {
+                                    model: modelData.steps.filter(function(step) { return !!step.number })
+
+                                    LineBadge {
+                                        icon: modelData.icon
+                                        number: modelData.number
+                                        lineColor: modelData.color
+                                    }
+                                }
+                            }
+                        }
+                        // Each leg, with the stops of the rides.
+                        Column {
+                            x: Theme.horizontalPageMargin
+                            width: parent.width - 2 * x
+                            visible: parent.selected && journeyList.expanded
+                            bottomPadding: Theme.paddingMedium
+
+                            Repeater {
+                                model: parent.visible ? modelData.legs : []
+
+                                Column {
+                                    id: leg
+
+                                    readonly property var legData: modelData
+
+                                    width: parent.width
+                                    topPadding: Theme.paddingSmall
+
+                                    Row {
+                                        width: parent.width
+                                        spacing: Theme.paddingSmall
+
+                                        LineBadge {
+                                            icon: leg.legData.icon
+                                            number: leg.legData.walk ? "" : leg.legData.number
+                                            lineColor: leg.legData.color
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                        Label {
+                                            width: parent.width - x
+                                            text: (leg.legData.walk ? appInfo.localized("journey_walk", [leg.legData.distance])
+                                                                 : appInfo.localized("journey_towards", [leg.legData.direction]))
+                                                  + " · " + leg.legData.duration
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            color: Theme.secondaryColor
+                                            truncationMode: TruncationMode.Fade
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                    }
+                                    Repeater {
+                                        model: leg.legData.walk ? [] : leg.legData.stops
+
+                                        Item {
+                                            // Getting on and off.
+                                            readonly property bool end: index === 0
+                                                                        || index === leg.legData.stops.length - 1
+
+                                            width: leg.width
+                                            height: stopName.height
+
+                                            Label {
+                                                id: stopTime
+                                                x: Theme.iconSizeExtraSmall + Theme.paddingSmall
+                                                text: modelData.time
+                                                font.pixelSize: Theme.fontSizeExtraSmall
+                                                color: parent.end ? Theme.primaryColor : Theme.secondaryColor
+                                            }
+                                            Label {
+                                                id: stopName
+                                                anchors {
+                                                    left: stopTime.right
+                                                    leftMargin: Theme.paddingMedium
+                                                    right: parent.right
+                                                }
+                                                text: modelData.name
+                                                font.pixelSize: Theme.fontSizeExtraSmall
+                                                font.bold: parent.end
+                                                color: parent.end ? Theme.primaryColor : Theme.secondaryColor
+                                                truncationMode: TruncationMode.Fade
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                MoreJourneysItem {
+                    visible: routing.canLoadLaterJourneys
+                    text: appInfo.localized("journeys_later")
+                    busy: routing.loadingJourneys && journeyList.loadingLater
+                    onClicked: journeyList.loadMore(true)
+                }
+            }
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * x
+                visible: routing.journeysAttribution !== ""
+                horizontalAlignment: Text.AlignRight
+                text: appInfo.localized("departures_data", [routing.journeysAttribution])
+                font.pixelSize: Theme.fontSizeExtraSmall
+                color: Theme.secondaryColor
             }
 
             // Lower than on the track page, leaving room for the route points.
@@ -513,7 +675,8 @@ MapPanel {
             anchors.verticalCenter: parent.verticalCenter
             icon.source: "image://theme/icon-m-downloads"
             Accessible.name: appInfo.localized("save")
-            enabled: routing.built && !routing.routeSaved
+            // Not for a journey from an online planner.
+            enabled: routing.built && !routing.routeSaved && routing.journeys.length === 0
             onClicked: routing.saveRoute()
         }
         Item {

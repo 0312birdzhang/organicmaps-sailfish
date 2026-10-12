@@ -10,6 +10,7 @@
 #include "map/elevation_info.hpp"
 #include "map/framework.hpp"
 #include "map/place_page_info.hpp"
+#include "map/relation_track.hpp"
 #include "map/routing_mark.hpp"
 #include "map/track.hpp"
 
@@ -19,8 +20,10 @@
 #include "ge0/url_generator.hpp"
 
 #include "indexer/classificator.hpp"
+#include "indexer/feature_algo.hpp"
 #include "indexer/feature_utils.hpp"
 #include "indexer/ftypes_matcher.hpp"
+#include "indexer/scales.hpp"
 #include "indexer/validate_and_format_contacts.hpp"
 
 #include "editor/opening_hours_ui.hpp"
@@ -34,6 +37,7 @@
 
 #include "platform/distance.hpp"
 #include "platform/localization.hpp"
+#include "platform/platform.hpp"
 #include "platform/settings.hpp"
 
 #include "geometry/angles.hpp"
@@ -49,14 +53,32 @@
 #include <QUrl>
 #include <QVariantMap>
 
+#include <algorithm>
 #include <cmath>
 #include <ctime>
+#include <map>
+#include <optional>
 
 namespace sailfish
 {
 namespace
 {
 using feature::Metadata;
+
+QString RoutesIcon(feature::RouteRelationBase::Type type)
+{
+  using Type = feature::RouteRelationBase::Type;
+  switch (type)
+  {
+  case Type::Subway: return QStringLiteral("routing/ic_20px_route_planning_metro.webp");
+  case Type::Train:
+  case Type::LightRail: return QStringLiteral("routing/ic_20px_route_planning_train.webp");
+  case Type::Monorail: return QStringLiteral("routing/ic_20px_route_planning_monorail.webp");
+  case Type::Tram: return QStringLiteral("placepage/ic_category_tram.svg");
+  case Type::Ferry: return QStringLiteral("routing/ic_20px_route_planning_ferry.svg");
+  default: return QStringLiteral("placepage/ic_category_bus.svg");
+  }
+}
 
 // Same setting and default as the desktop place page.
 std::string_view constexpr kCoordinatesFormatSetting = "CoordinatesFormat";
@@ -272,8 +294,12 @@ PlacePage::PlacePage(Framework & framework, QObject * parent) : QObject(parent),
   {
     m_open = false;
     m_departures.Clear();
+    m_routesShownFor = {};
     emit changed();
   }, [this] { Update(); }, [this] { emit switchFullScreen(); });
+  m_departures.SetRoutePaths(
+      [this](std::string const & line, std::string const & destination, StopDepartures::OnPaths onPaths)
+  { RoutePaths(line, destination, std::move(onPaths)); });
   auto & manager = m_framework.GetBookmarkManager();
   manager.SetElevationActivePointChangedCallback([this](kml::TrackId, double) { emit elevationPointsChanged(); });
   manager.SetElevationMyPositionChangedCallback([this](kml::TrackId, double) { emit elevationPointsChanged(); });
@@ -418,16 +444,6 @@ void PlacePage::Update()
   m_wikiUrl = wikipedia.empty() ? QString() : QString::fromStdString(Metadata::ToWikiURL(std::string(wikipedia)));
   m_details = MakeDetails(info);
   UpdateRoutes(info);
-  if (ftypes::IsPublicTransportStopChecker::Instance()(info.GetTypes()) ||
-      ftypes::IsRailwayStationChecker::Instance()(info.GetTypes()))
-  {
-    auto const latLon = info.GetLatLon();
-    m_departures.SetStop(latLon.m_lat, latLon.m_lon, info.GetTitle());
-  }
-  else
-  {
-    m_departures.Clear();
-  }
 
   UpdateTrack();
   UpdateList();
@@ -452,8 +468,14 @@ void PlacePage::UpdateRoutes(place_page::Info const & info)
 {
   m_routes.clear();
   m_routeIds.clear();
+  std::map<feature::RouteRelationBase::Type, int> routeTypes;
+  std::vector<std::string> lines;
+  std::vector<live_transit::PlatformRoute> platformRoutes;
   for (auto const & route : info.GetRoutes())
   {
+    ++routeTypes[route.m_type];
+    lines.push_back(route.m_ref);
+    platformRoutes.push_back({route.m_ref, route.m_from, route.m_to});
     QString label = QString::fromStdString(route.m_ref);
     if (!route.m_from.empty() || !route.m_to.empty())
     {
@@ -468,8 +490,37 @@ void PlacePage::UpdateRoutes(place_page::Info const & info)
     m_routeIds.push_back(route.m_relID);
   }
   static uint32_t const kTramStop = classif().GetTypeByPath({"railway", "tram_stop"});
-  m_isTramStop = info.GetTypes().Has(kTramStop);
+  static uint32_t const kBusStop = classif().GetTypeByPath({"highway", "bus_stop"});
+  bool const isTramStop = info.GetTypes().Has(kTramStop);
+  auto const mostRoutes = std::ranges::max_element(routeTypes, {}, &decltype(routeTypes)::value_type::second);
+  m_routesIcon = RoutesIcon(mostRoutes != routeTypes.end() ? mostRoutes->first
+                            : isTramStop                   ? feature::RouteRelationBase::Type::Tram
+                                                           : feature::RouteRelationBase::Type::Bus);
+  // A stop shows all its lines, until one is picked.
+  if (std::pair<std::string, uint32_t> const stop{info.GetID().GetMwmName(), info.GetID().m_index};
+      !m_routes.isEmpty() && stop != m_routesShownFor)
+  {
+    m_routesShownFor = stop;
+    m_framework.ShowStopRoutesTransit();
+  }
   UpdateRouteRefs();
+  if (ftypes::IsPublicTransportStopChecker::Instance()(info.GetTypes()) ||
+      ftypes::IsRailwayStationChecker::Instance()(info.GetTypes()))
+  {
+    auto const latLon = info.GetLatLon();
+    // Stations and terminals have many platforms.
+    std::optional<live_transit::StopPlatform> platform;
+    if (isTramStop || info.GetTypes().Has(kBusStop))
+    {
+      platform = live_transit::StopPlatform{latLon, std::string(info.GetMetadata(Metadata::FMD_LOCAL_REF)),
+                                            std::move(lines), std::move(platformRoutes)};
+    }
+    m_departures.SetStop(latLon.m_lat, latLon.m_lon, info.GetTitle(), std::move(platform));
+  }
+  else
+  {
+    m_departures.Clear();
+  }
 }
 
 void PlacePage::UpdateList()
@@ -584,6 +635,116 @@ void PlacePage::UpdateRouteRefs()
     }
   }
   m_routeRefs = JoinDetails(refs);
+}
+
+int PlacePage::routeIndex(QString const & line, QString const & destination) const
+{
+  return FindRoute(line, destination).first;
+}
+
+std::pair<int, bool> PlacePage::FindRoute(QString const & line, QString const & destination) const
+{
+  if (!m_framework.HasPlacePageInfo())
+    return {-1, false};
+  int index = -1;
+  int count = 0;
+  std::string const to = destination.toStdString();
+  auto const & routes = m_framework.GetCurrentPlacePageInfo().GetRoutes();
+  for (size_t i = 0; i < routes.size(); ++i)
+  {
+    if (QString::fromStdString(routes[i].m_ref).compare(line, Qt::CaseInsensitive) != 0)
+      continue;
+    if (live_transit::IsSamePlace(to, routes[i].m_to))
+      return {static_cast<int>(i), true};
+    if (index < 0)
+      index = static_cast<int>(i);
+    // Not the other way.
+    if (!live_transit::IsSamePlace(to, routes[i].m_from))
+      ++count;
+  }
+  // The only one of its line here that may go the way of its departures here.
+  return {index, count == 1};
+}
+
+void PlacePage::RoutePaths(std::string const & line, std::string const & destination, StopDepartures::OnPaths onPaths)
+{
+  auto const [index, directed] = FindRoute(QString::fromStdString(line), QString::fromStdString(destination));
+  if (index < 0)
+  {
+    onPaths({});
+    return;
+  }
+  auto const & info = m_framework.GetCurrentPlacePageInfo();
+  GetPlatform().RunTask(Platform::Thread::Background,
+                        [&framework = m_framework, fid = info.GetID(), directed,
+                         relID = info.GetRoutes()[static_cast<size_t>(index)].m_relID, onPaths = std::move(onPaths)]
+  {
+    RelationTrackBuilder builder(framework.GetDataSource(), fid, &framework.GetCountryInfoGetter());
+    live_transit::VehicleMotion::Route route;
+    if (auto transit = builder.BuildTransitInfo(relID))
+    {
+      for (auto & line : transit->m_routes)
+        route.m_paths.push_back(std::move(line.m_polyline));
+      for (auto const & stop : transit->m_stops)
+        route.m_stops.push_back(stop.m_pos);
+      route.m_ordered = directed;
+    }
+    GetPlatform().RunTask(Platform::Thread::Gui,
+                          [onPaths, route = std::move(route)]() mutable { onPaths(std::move(route)); });
+  });
+}
+
+void PlacePage::selectStop(QString const & line, QString const & destination, double lat, double lon)
+{
+  if (!m_framework.HasPlacePageInfo())
+    return;
+  auto const & info = m_framework.GetCurrentPlacePageInfo();
+  auto const index = FindRoute(line, destination).first;
+  std::optional<uint32_t> relID;
+  if (index >= 0)
+    relID = info.GetRoutes()[static_cast<size_t>(index)].m_relID;
+  GetPlatform().RunTask(Platform::Thread::Background,
+                        [&framework = m_framework, fid = info.GetID(), relID, point = mercator::FromLatLon(lat, lon)]
+  {
+    // Providers place a stop between its platforms, or anywhere near.
+    double constexpr kMaxStopM = 300.0;
+    FeatureID found;
+    double nearestM = kMaxStopM;
+    auto const consider = [&](FeatureID const & id, m2::PointD const & pos)
+    {
+      double const distanceM = mercator::DistanceOnEarth(point, pos);
+      if (distanceM < nearestM)
+      {
+        nearestM = distanceM;
+        found = id;
+      }
+    };
+    // The line's own stops are on its side of the street.
+    if (relID)
+    {
+      RelationTrackBuilder builder(framework.GetDataSource(), fid, &framework.GetCountryInfoGetter());
+      if (auto const transit = builder.BuildTransitInfo(*relID))
+        for (auto const & stop : transit->m_stops)
+          consider(stop.m_featureId, stop.m_pos);
+    }
+    if (!found.IsValid())
+    {
+      auto const & isStop = ftypes::IsPublicTransportStopChecker::Instance();
+      auto const & isStation = ftypes::IsRailwayStationChecker::Instance();
+      framework.GetDataSource().ForEachInRect([&](FeatureType & ft)
+      {
+        if (ft.GetGeomType() == feature::GeomType::Point && (isStop(ft) || isStation(ft)))
+          consider(ft.GetID(), feature::GetCenter(ft));
+      }, mercator::RectByCenterXYAndSizeInMeters(point, kMaxStopM), scales::GetUpperScale());
+    }
+    GetPlatform().RunTask(Platform::Thread::Gui, [&framework, found, point]
+    {
+      if (found.IsValid())
+        framework.ShowFeature(found);
+      else
+        framework.SetViewportCenter(point, scales::GetUpperComfortScale());
+    });
+  });
 }
 
 void PlacePage::showRoute(int index)

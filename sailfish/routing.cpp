@@ -4,7 +4,10 @@
 #include "sailfish/countries_model.hpp"
 #include "sailfish/elevation.hpp"
 #include "sailfish/helpers.hpp"
+#include "sailfish/transit_providers.hpp"
 #include "sailfish/voice_guide.hpp"
+
+#include "live_transit/provider.hpp"
 
 #include "map/elevation_info.hpp"
 #include "map/framework.hpp"
@@ -12,6 +15,10 @@
 #include "map/routing_manager.hpp"
 #include "map/routing_mark.hpp"
 #include "map/transit/transit_display.hpp"
+
+#include "indexer/data_source.hpp"
+#include "indexer/feature.hpp"
+#include "indexer/scales.hpp"
 
 #include "routing/following_info.hpp"
 #include "routing/lanes/lane_info.hpp"
@@ -27,21 +34,26 @@
 #include "platform/languages.hpp"
 #include "platform/localization.hpp"
 #include "platform/measurement_utils.hpp"
+#include "platform/platform.hpp"
 #include "platform/preferred_languages.hpp"
 #include "platform/settings.hpp"
 
 #include "storage/storage.hpp"
 
+#include "geometry/distance_on_sphere.hpp"
 #include "geometry/mercator.hpp"
 
+#include "base/logging.hpp"
 #include "base/sunrise_sunset.hpp"
 
 #include <QColor>
 #include <QDateTime>
 #include <QGuiApplication>
+#include <QPointer>
 #include <QVariantMap>
 
 #include <algorithm>
+#include <chrono>
 #include <utility>
 #include <vector>
 
@@ -112,8 +124,84 @@ QString TransitIcon(TransitType type)
   case TransitType::LightRail:
   case TransitType::AerialLift:
   case TransitType::Funicular: return QStringLiteral("ic_20px_route_planning_lightrail.webp");
+  case TransitType::Ferry: return QStringLiteral("ic_20px_route_planning_ferry.svg");
   default: return QStringLiteral("ic_20px_route_planning_bus.svg");
   }
+}
+
+TransitType ToTransitType(live_transit::TransportMode mode)
+{
+  using live_transit::TransportMode;
+  switch (mode)
+  {
+  case TransportMode::Tram: return TransitType::Tram;
+  case TransportMode::Metro: return TransitType::Subway;
+  case TransportMode::Train: return TransitType::Train;
+  case TransportMode::Ferry: return TransitType::Ferry;
+  case TransportMode::Bus:
+  case TransportMode::Other: return TransitType::Bus;
+  }
+  return TransitType::Bus;
+}
+
+QString FormatClock(live_transit::LocalTime time)
+{
+  using namespace std::chrono;
+  hh_mm_ss const clock{time - floor<days>(time)};
+  return FormatTime(QTime(static_cast<int>(clock.hours().count()), static_cast<int>(clock.minutes().count())));
+}
+
+int Seconds(live_transit::LocalTime from, live_transit::LocalTime to)
+{
+  return static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(to - from).count());
+}
+
+double PathLength(std::vector<ms::LatLon> const & path)
+{
+  double length = 0.0;
+  for (size_t i = 1; i < path.size(); ++i)
+    length += ms::DistanceOnEarth(path[i - 1], path[i]);
+  return length;
+}
+
+// As the transit steps of the router's routes.
+QVariantList JourneySteps(live_transit::Journey const & journey, std::vector<QString> const & colors)
+{
+  QVariantList steps;
+  for (size_t i = 0; i < journey.m_legs.size(); ++i)
+  {
+    auto const & leg = journey.m_legs[i];
+    QVariantMap item;
+    item["icon"] = TransitIcon(leg.m_walk ? TransitType::Pedestrian : ToTransitType(leg.m_mode));
+    item["number"] = QString::fromStdString(leg.m_line);
+    item["color"] = colors[i];
+    steps.append(item);
+  }
+  return steps;
+}
+
+QVariantList JourneyLegs(live_transit::Journey const & journey, std::vector<QString> const & colors)
+{
+  QVariantList legs;
+  for (size_t i = 0; i < journey.m_legs.size(); ++i)
+  {
+    auto const & leg = journey.m_legs[i];
+    QVariantList stops;
+    for (auto const & stop : leg.m_stops)
+      stops.append(QVariantMap{{"name", QString::fromStdString(stop.m_name)}, {"time", FormatClock(stop.m_time)}});
+    double const distance = leg.m_distanceM > 0 ? leg.m_distanceM : PathLength(leg.m_path);
+    legs.append(QVariantMap{
+        {"walk", leg.m_walk},
+        {"icon", TransitIcon(leg.m_walk ? TransitType::Pedestrian : ToTransitType(leg.m_mode))},
+        {"number", QString::fromStdString(leg.m_line)},
+        {"color", colors[i]},
+        {"direction", QString::fromStdString(leg.m_direction)},
+        {"distance", QString::fromStdString(platform::Distance::CreateFormatted(distance).ToString())},
+        {"duration", FormatDuration(Seconds(leg.m_from.m_time, leg.m_to.m_time))},
+        {"stops", stops},
+    });
+  }
+  return legs;
 }
 
 // Same arrows as CarDirection and PedestrianTurnDirection on Android.
@@ -288,12 +376,7 @@ QVariantMap TransitStepItem(TransitStepInfo const & step)
   item["icon"] = TransitIcon(step.m_type);
   item["number"] = QString::fromStdString(step.m_number);
   if (!walk)
-  {
-    auto const color = QColor::fromRgba(step.m_colorARGB);
-    item["color"] = color.name();
-    // Readable on light line colors too.
-    item["textColor"] = qGray(color.rgb()) > 150 ? QStringLiteral("#000000") : QStringLiteral("#ffffff");
-  }
+    item["color"] = QColor::fromRgba(step.m_colorARGB).name();
   return item;
 }
 
@@ -1158,7 +1241,8 @@ void Routing::cancelMissingMaps()
 
 void Routing::saveRoute()
 {
-  if (!m_built || m_routeSaved)
+  // A journey from an online planner isn't the core's route.
+  if (!m_built || m_routeSaved || !m_journeys.empty())
     return;
   // The chart mark would stay on the saved track.
   ClearElevationActivePoint();
@@ -1228,6 +1312,15 @@ void Routing::ClearResult()
   m_arrival.clear();
   m_walkingDistance.clear();
   m_transitSteps.clear();
+  ++m_journeysRequestId;
+  m_journeys.clear();
+  m_journeyItems.clear();
+  m_selectedJourney = -1;
+  m_journeysAttribution.clear();
+  m_earlierJourneys.clear();
+  m_laterJourneys.clear();
+  m_loadingJourneys = false;
+  m_lineColors.clear();
   m_missingMaps.clear();
   m_elevation.clear();
   m_ascentDescent.clear();
@@ -1264,6 +1357,14 @@ void Routing::Build()
     emit stateChanged();
     return;
   }
+  if (routerType() == Transit && BuildOnline())
+    return;
+  BuildWithRouter();
+}
+
+void Routing::BuildWithRouter()
+{
+  auto & manager = m_framework.GetRoutingManager();
   manager.SetRouter(manager.GetLastUsedRouter());
   m_building = true;
   m_buildCancelled = false;
@@ -1275,6 +1376,222 @@ void Routing::Build()
     m_building = false;
     emit stateChanged();
   }
+}
+
+bool Routing::BuildOnline()
+{
+  auto & manager = m_framework.GetRoutingManager();
+  auto const points = manager.GetRoutePoints();
+  // The planners take no stops in between.
+  if (points.size() != 2)
+    return false;
+  std::vector<ms::LatLon> latLons;
+  for (auto const & point : points)
+  {
+    if (!point.m_isMyPosition)
+    {
+      latLons.push_back(mercator::ToLatLon(point.m_position));
+      continue;
+    }
+    // The router waits for a position.
+    auto const position = m_framework.GetCurrentPosition();
+    if (!position)
+      return false;
+    latLons.push_back(mercator::ToLatLon(*position));
+  }
+  auto provider = GetTransitProvider(latLons.front());
+  if (!provider || !provider->HasJourneys() || !provider->Covers(latLons.back()))
+    return false;
+
+  manager.RemoveRoute(false /* deactivateFollowing */);
+  m_building = true;
+  m_journeysFrom = latLons.front();
+  m_journeysTo = latLons.back();
+  emit stateChanged();
+  RequestJourneys({}, false /* later */);
+  return true;
+}
+
+void Routing::RequestJourneys(std::string context, bool later)
+{
+  auto provider = GetTransitProvider(m_journeysFrom);
+  if (!provider || !provider->HasJourneys())
+    return;
+  bool const more = !context.empty();
+  QPointer<Routing> self(this);
+  auto const id = m_journeysRequestId;
+  GetPlatform().RunTask(Platform::Thread::Network,
+                        [self, id, provider, more, later,
+                         query = live_transit::JourneyQuery{m_journeysFrom, m_journeysTo, std::move(context)}]
+  {
+    auto result = provider->RequestJourneys(query);
+    GetPlatform().RunTask(Platform::Thread::Gui, [self, id, provider, more, later, result = std::move(result)]() mutable
+    {
+      if (!self || id != self->m_journeysRequestId)
+        return;
+      if (more)
+        self->OnMoreJourneys(std::move(result), later);
+      else
+        self->OnJourneys(std::move(result), provider->GetAttribution());
+    });
+  });
+}
+
+void Routing::OnJourneys(live_transit::Journeys && result, std::string_view attribution)
+{
+  if (result.m_status != live_transit::Status::Ok || result.m_journeys.empty())
+  {
+    LOG(LINFO, ("No online journeys:", result.m_status, "; using the router"));
+    BuildWithRouter();
+    return;
+  }
+  m_building = false;
+  m_journeys = std::move(result.m_journeys);
+  m_earlierJourneys = std::move(result.m_earlier);
+  m_laterJourneys = std::move(result.m_later);
+  m_journeysAttribution = QString::fromUtf8(attribution.data(), static_cast<int>(attribution.size()));
+  UpdateJourneyItems();
+  selectJourney(0);
+}
+
+void Routing::loadEarlierJourneys()
+{
+  if (m_loadingJourneys || m_earlierJourneys.empty())
+    return;
+  m_loadingJourneys = true;
+  emit stateChanged();
+  RequestJourneys(m_earlierJourneys, false /* later */);
+}
+
+void Routing::loadLaterJourneys()
+{
+  if (m_loadingJourneys || m_laterJourneys.empty())
+    return;
+  m_loadingJourneys = true;
+  emit stateChanged();
+  RequestJourneys(m_laterJourneys, true /* later */);
+}
+
+void Routing::OnMoreJourneys(live_transit::Journeys && result, bool later)
+{
+  m_loadingJourneys = false;
+  // The shown journeys stay, and the same contexts can be tried again.
+  if (result.m_status != live_transit::Status::Ok)
+  {
+    LOG(LINFO, ("No more online journeys:", result.m_status));
+    emit stateChanged();
+    return;
+  }
+  auto & journeys = result.m_journeys;
+  if (later)
+  {
+    m_laterJourneys = std::move(result.m_later);
+    m_journeys.insert(m_journeys.end(), journeys.begin(), journeys.end());
+  }
+  else
+  {
+    m_earlierJourneys = std::move(result.m_earlier);
+    m_journeys.insert(m_journeys.begin(), journeys.begin(), journeys.end());
+    m_selectedJourney += static_cast<int>(journeys.size());
+  }
+  UpdateJourneyItems();
+  emit stateChanged();
+}
+
+void Routing::UpdateJourneyItems()
+{
+  m_journeyItems.clear();
+  for (auto const & journey : m_journeys)
+  {
+    auto const colors = LegColors(journey);
+    m_journeyItems.append(QVariantMap{
+        {"departure", FormatClock(journey.GetDeparture())},
+        {"arrival", FormatClock(journey.GetArrival())},
+        {"duration", FormatDuration(Seconds(journey.GetDeparture(), journey.GetArrival()))},
+        {"steps", JourneySteps(journey, colors)},
+        {"legs", JourneyLegs(journey, colors)},
+    });
+  }
+}
+
+std::vector<QString> Routing::LegColors(live_transit::Journey const & journey)
+{
+  // Stops are mapped a little apart from where the planner has them.
+  double constexpr kStopSearchM = 150.0;
+  std::vector<QString> colors;
+  for (auto const & leg : journey.m_legs)
+  {
+    QString & color = colors.emplace_back();
+    if (leg.m_walk || leg.m_line.empty())
+      continue;
+    auto const [it, inserted] = m_lineColors.try_emplace({leg.m_line, leg.m_from.m_name});
+    if (!inserted)
+    {
+      color = it->second;
+      continue;
+    }
+    // From the route relations of the stops where it's boarded.
+    QString const line = QString::fromStdString(leg.m_line);
+    auto const rect = mercator::RectByCenterXYAndSizeInMeters(mercator::FromLatLon(leg.m_from.m_latLon), kStopSearchM);
+    m_framework.GetDataSource().ForEachInRect([&](FeatureType & ft)
+    {
+      if (!color.isEmpty())
+        return;
+      for (uint32_t const id : ft.GetRelations())
+      {
+        auto relation = ft.ReadRelation(id);
+        if (!relation.IsPTRoute())
+          continue;
+        auto const & route = relation.GetRel();
+        uint32_t const argb = route.GetColor().GetARGB();
+        // No alpha means the relation has no color.
+        if ((argb >> 24) != 0 && QString::fromStdString(route.GetRef()).compare(line, Qt::CaseInsensitive) == 0)
+        {
+          color = QColor::fromRgba(argb).name();
+          return;
+        }
+      }
+    }, rect, scales::GetUpperScale());
+    it->second = color;
+  }
+  return colors;
+}
+
+void Routing::selectJourney(int index)
+{
+  if (index < 0 || index >= static_cast<int>(m_journeys.size()))
+    return;
+  m_selectedJourney = index;
+  auto const & journey = m_journeys[static_cast<size_t>(index)];
+  auto const colors = LegColors(journey);
+
+  std::vector<ExternalTransitLeg> legs;
+  double walked = 0.0;
+  for (size_t i = 0; i < journey.m_legs.size(); ++i)
+  {
+    auto const & leg = journey.m_legs[i];
+    ExternalTransitLeg & external = legs.emplace_back();
+    external.m_type = leg.m_walk ? TransitType::Pedestrian : ToTransitType(leg.m_mode);
+    external.m_number = leg.m_line;
+    external.m_color = colors[i].toStdString();
+    for (auto const & latLon : leg.m_path)
+      external.m_points.push_back(mercator::FromLatLon(latLon));
+    external.m_fromName = leg.m_from.m_name;
+    external.m_toName = leg.m_to.m_name;
+    external.m_distanceInMeters = leg.m_distanceM > 0 ? leg.m_distanceM : PathLength(leg.m_path);
+    external.m_timeInSec = Seconds(leg.m_from.m_time, leg.m_to.m_time);
+    if (leg.m_walk)
+      walked += external.m_distanceInMeters;
+  }
+  m_framework.GetRoutingManager().InsertExternalTransitRoute(legs);
+
+  m_built = true;
+  m_summary = FormatDuration(Seconds(journey.GetDeparture(), journey.GetArrival()));
+  m_arrival = FormatClock(journey.GetArrival());
+  m_walkingDistance =
+      walked > 0 ? QString::fromStdString(platform::Distance::CreateFormatted(walked).ToString()) : QString();
+  m_transitSteps = JourneySteps(journey, colors);
+  emit stateChanged();
 }
 
 void Routing::SetError(QString const & title, QString const & message)

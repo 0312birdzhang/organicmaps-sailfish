@@ -176,6 +176,9 @@ public:
   void GetRouteFollowingInfo(routing::FollowingInfo & info) const { m_routingSession.GetRouteFollowingInfo(info); }
 
   TransitRouteInfo GetTransitRouteInfo() const;
+  /// \brief Draws a journey planned outside of the routers, e.g. by an online planner, as a transit
+  /// route that RemoveRoute() removes. GetTransitRouteInfo() then describes it.
+  void InsertExternalTransitRoute(std::vector<ExternalTransitLeg> const & legs);
 
   m2::PointD GetRouteEndPoint() const { return m_routingSession.GetEndPoint(); }
   /// Returns the most situable router engine type.

@@ -14,6 +14,8 @@ Page {
 
     // For children, where "map: map" would bind to their own property.
     readonly property QtObject mapItem: map
+    // The live vehicle the map follows, after a tap on it, until the map is moved by hand or the stop closes.
+    property string followedTrip
     readonly property bool navigating: map.routing.navigating
     readonly property bool choosingPosition: map.choosingPosition
     readonly property bool mapIsDark: {
@@ -144,6 +146,82 @@ Page {
         topWidgetsOffset: page.topControlsBottom
         // Routes are fitted into the map above the open sheets.
         viewportBottomInset: page.navigating ? navigationBottomPanel.height : page.bottomPanelsSize
+
+        // The live vehicles of the place page's stop.
+        Repeater {
+            id: vehicleRepeater
+
+            function sync() {
+                var departures = map.placePage.departures
+                var selected = departures.selected
+                var vehicles = departures.vehicles.filter(function(vehicle) {
+                    return selected.line === undefined
+                           || (vehicle.line === selected.line && vehicle.destination === selected.destination)
+                })
+                for (var i = vehicleModel.count - 1; i >= 0; --i) {
+                    var tripId = vehicleModel.get(i).tripId
+                    if (!vehicles.some(function(vehicle) { return vehicle.tripId === tripId }))
+                        vehicleModel.remove(i)
+                }
+                vehicles.forEach(function(vehicle) {
+                    var item = {
+                        tripId: vehicle.tripId, lat: vehicle.lat, lon: vehicle.lon,
+                        bearing: isNaN(vehicle.bearing) ? -1 : vehicle.bearing,
+                        line: vehicle.line, destination: vehicle.destination, icon: vehicle.icon,
+                        minutes: vehicle.minutes, time: vehicle.time, scheduled: vehicle.scheduled,
+                        delay: vehicle.delay, realtime: vehicle.realtime, timestamp: vehicle.timestamp
+                    }
+                    for (var j = 0; j < vehicleModel.count; ++j) {
+                        if (vehicleModel.get(j).tripId === vehicle.tripId) {
+                            vehicleModel.set(j, item)
+                            return
+                        }
+                    }
+                    vehicleModel.append(item)
+                })
+            }
+
+            model: ListModel { id: vehicleModel }
+
+            VehicleMarker {
+                mapItem: map
+                lat: model.lat
+                lon: model.lon
+                bearing: model.bearing
+                line: model.line
+                destination: model.destination
+                icon: model.icon
+                lineColor: {
+                    var index = map.placePage.routeIndex(model.line, model.destination)
+                    return index >= 0 ? map.placePage.routes[index].color : ""
+                }
+                minutes: model.minutes
+                time: model.time
+                scheduled: model.scheduled
+                delay: model.delay
+                realtime: model.realtime
+                timestamp: model.timestamp
+                tracked: model.tripId === map.placePage.departures.trackedTrip
+
+                onClicked: {
+                    map.placePage.departures.track(model.tripId)
+                    page.followedTrip = model.tripId
+                    map.centerOn(model.lat, model.lon, true)
+                }
+                // Keeps the followed one in view as its position comes, about every 250 ms.
+                readonly property real modelLat: model.lat
+                onModelLatChanged: {
+                    if (page.followedTrip === model.tripId)
+                        map.centerOn(model.lat, model.lon, true)
+                }
+            }
+        }
+        // Updates the markers in place, so that they glide. Of a picked line, only its vehicles are shown.
+        Connections {
+            target: map.placePage.departures
+            onVehicleChanged: vehicleRepeater.sync()
+            onChanged: vehicleRepeater.sync()
+        }
     }
 
     Connections {
@@ -185,6 +263,8 @@ Page {
             }
         }
         onChanged: {
+            if (!map.placePage.open)
+                page.followedTrip = ""
             if (!page.placeFromSearch)
                 return
             if (!map.placePage.open)
@@ -707,6 +787,15 @@ Page {
     SearchModel {
         id: search
         highlightColor: Theme.highlightColor
+    }
+
+    Connections {
+        target: page.mapItem
+        onPanStarted: {
+            page.followedTrip = ""
+            if (placePagePanel.open)
+                placePagePanel.minimized = true
+        }
     }
 
     PlacePagePanel {
