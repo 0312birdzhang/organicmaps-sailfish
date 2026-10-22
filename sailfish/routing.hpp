@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sailfish/navigation_export.hpp"
 #include "sailfish/prompt_player.hpp"
 
 #include <QObject>
@@ -277,6 +278,7 @@ private:
   std::string WantedVoiceLanguage() const;
 
   Framework & m_framework;
+  NavigationExport m_navigationExport;
   bool m_building = false;
   bool m_buildCancelled = false;
   // Changes on every build and close, so that a queued result of an earlier one is dropped.

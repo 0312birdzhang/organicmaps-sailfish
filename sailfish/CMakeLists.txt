@@ -50,6 +50,8 @@ set(SRC
   maps_storage.hpp
   media_pause.cpp
   media_pause.hpp
+  navigation_export.cpp
+  navigation_export.hpp
   opening_hours_editor.cpp
   opening_hours_editor.hpp
   osm_account.cpp

@@ -40,6 +40,7 @@
 #include <QColor>
 #include <QDateTime>
 #include <QGuiApplication>
+#include <QJsonObject>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -622,6 +623,7 @@ void Routing::EndNavigation()
 void Routing::LeaveNavigation()
 {
   m_navigating = false;
+  m_navigationExport.Publish({{"state", "stopped"}});
   m_navigation.clear();
   SetNavigationStyle(false);
   emit navigatingChanged();
@@ -876,13 +878,29 @@ void Routing::UpdateNavigation(double speedMps)
   {
     // Without stopping the voice, so that the arrival is heard.
     EndNavigation();
+    m_navigationExport.Publish({{"state", "arrived"}});
     return;
   }
 
   routing::FollowingInfo info;
   manager.GetRouteFollowingInfo(info);
   if (!info.IsValid())
+  {
+    m_navigationExport.Publish({{"state", "unavailable"}});
     return;
+  }
+
+  auto const points = manager.GetRoutePoints();
+  m_navigationExport.Publish(
+      {{"state", "active"}, {"routerType", routerType()}, {"turn", static_cast<int>(info.m_turn)},
+       {"exitNumber", static_cast<int>(info.m_exitNum)}, {"remainingSeconds", std::max(0, info.m_time)},
+       {"currentRoad", QString::fromStdString(info.m_currentStreetName)},
+       {"nextRoad", QString::fromStdString(info.m_nextStreetName)},
+       {"destination", points.empty() ? QString() : QString::fromStdString(points.back().m_title)},
+       {"nextDistance", info.m_distToTurn.GetDistance()},
+       {"nextDistanceUnit", static_cast<int>(info.m_distToTurn.GetUnits())},
+       {"remainingDistance", info.m_distToTarget.GetDistance()},
+       {"remainingDistanceUnit", static_cast<int>(info.m_distToTarget.GetUnits())}});
 
   m_navigation = MakeNavigation(info, speedMps);
   emit navigationChanged();
