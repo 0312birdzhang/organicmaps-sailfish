@@ -575,12 +575,12 @@ void MapItem::OnApplicationStateChanged(Qt::ApplicationState)
 
 void MapItem::UpdateRenderingState()
 {
-  // A projected window may lose phone activation on screen blank/focus changes.
-  // Keep drape alive while its car window is visible; normal phone covers still idle.
+  // Silica can hide the map item together with phone activation even though the
+  // car compositor still consumes its last buffer. Projected render lifetime
+  // follows the app process, which Sailplay retires on session end.
   bool const projected = qgetenv("WAYLAND_DISPLAY").contains("imira-comp") &&
                          qgetenv("SAILPLAY_NAVIGATION_EXPORT") == "1";
-  bool const projectedVisible = projected && window() && window()->isVisible() && isVisible();
-  bool const inBackground = QGuiApplication::applicationState() != Qt::ApplicationActive && !projectedVisible;
+  bool const inBackground = !projected && QGuiApplication::applicationState() != Qt::ApplicationActive;
   if (!m_contextFactory || inBackground == m_inBackground)
     return;
 
@@ -612,7 +612,9 @@ void MapItem::CreateEngine()
   QScreen * screen = window()->screen();
   qreal const dpi = screen ? screen->physicalDotsPerInch() : 0;
   m_visualScale = dpi > 0 ? df::DPI2VS(dpi) : 2.0;
-  LOG(LINFO, ("Screen DPI:", dpi, "visual scale:", m_visualScale));
+  LOG(LINFO, ("Screen DPI:", dpi, "visual scale:", m_visualScale,
+               "projected:", qgetenv("SAILPLAY_NAVIGATION_EXPORT").toStdString(),
+               "display:", qgetenv("WAYLAND_DISPLAY").toStdString()));
 
   // The screen size only changes on rotation, so the framebuffers needn't be rounded up.
   m_contextFactory = std::make_unique<qt::common::QtOGLContextFactory>(shareContext, true /* exactSize */);
