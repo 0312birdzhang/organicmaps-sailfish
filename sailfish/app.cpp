@@ -181,6 +181,9 @@ __attribute__((visibility("default"))) int OrganicMapsMain(int argc, char * argv
   view->rootContext()->setContextProperty(QStringLiteral("urlHandler"), &urlHandler);
   view->rootContext()->setContextProperty(QStringLiteral("mapsStorage"), &mapsStorage);
   view->rootContext()->setContextProperty(QStringLiteral("downloads"), &downloads);
+  bool const projected = qgetenv("WAYLAND_DISPLAY").contains("imira-comp") &&
+                         qgetenv("SAILPLAY_NAVIGATION_EXPORT") == "1";
+  view->rootContext()->setContextProperty(QStringLiteral("sailplayProjected"), projected);
   // A local file loads synchronously.
   view->setSource(SailfishApp::pathToMainQml());
   if (view->status() != QQuickView::Ready)

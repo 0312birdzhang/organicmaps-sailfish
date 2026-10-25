@@ -179,6 +179,7 @@ protected:
 private:
   void OnWindowChanged(QQuickWindow * window);
   void OnApplicationStateChanged(Qt::ApplicationState state);
+  void UpdateRenderingState();
   void CreateEngine();
   void Resize(int width, int height);
   void UpdateWidgetLayout();

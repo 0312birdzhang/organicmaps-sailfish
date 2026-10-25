@@ -14,6 +14,11 @@ Page {
 
     // For children, where "map: map" would bind to their own property.
     readonly property QtObject mapItem: map
+    readonly property bool projected: sailplayProjected
+    // Phone theme metrics are too large for a short car viewport, including split view.
+    readonly property real navigationScale: projected
+        ? Math.max(0.1, Math.min(1, height / (480 * Theme.pixelRatio), width / (800 * Theme.pixelRatio))) : 1
+    readonly property bool wideLayout: projected ? width > height : isLandscape
     readonly property bool navigating: map.routing.navigating
     readonly property bool choosingPosition: map.choosingPosition
     readonly property bool mapIsDark: {
@@ -32,10 +37,10 @@ Page {
     // The lowest of the controls along the top right edge, or the padded camera notch in portrait; the compass
     // goes below it.
     readonly property real topControlsBottom: recordingButton.visible ? recordingButton.y + recordingButton.height
-        : navigationTopPanel.visible ? navigationTopPanel.y + navigationTopPanel.rightHeight
+        : navigationTopPanel.visible ? navigationTopPanel.y + navigationTopPanel.rightHeight * page.navigationScale
         : topInset + buttonMargin
     // Silica keeps landscape pages clear of the camera notch.
-    readonly property real topInset: page.orientation === Orientation.Portrait ? Screen.topCutout.height : 0
+    readonly property real topInset: !projected && page.orientation === Orientation.Portrait ? Screen.topCutout.height : 0
     // For the navigation and downloader layouts that keep the Android sizes.
     readonly property real androidDp: myPositionButton.androidDp
     readonly property real buttonMargin: Theme.paddingMedium
@@ -135,15 +140,15 @@ Page {
             leftMargin: -leftInset
             rightMargin: -rightInset
         }
-        leftInset: page.orientation === Orientation.Landscape ? Screen.topCutout.height : 0
-        rightInset: page.orientation === Orientation.LandscapeInverted ? Screen.topCutout.height : 0
+        leftInset: !page.projected && page.orientation === Orientation.Landscape ? Screen.topCutout.height : 0
+        rightInset: !page.projected && page.orientation === Orientation.LandscapeInverted ? Screen.topCutout.height : 0
         // Keeps the scale line and attribution above the bottom row with its padding, or above the navigation
         // panel.
-        bottomWidgetsOffset: page.navigating ? navigationBottomPanel.height
+        bottomWidgetsOffset: page.navigating ? navigationBottomPanel.height * page.navigationScale
                            : bottomButtons.visible ? bottomButtons.height + 2 * page.buttonMargin : 0
         topWidgetsOffset: page.topControlsBottom
         // Routes are fitted into the map above the open sheets.
-        viewportBottomInset: page.navigating ? navigationBottomPanel.height : page.bottomPanelsSize
+        viewportBottomInset: page.navigating ? navigationBottomPanel.height * page.navigationScale : page.bottomPanelsSize
     }
 
     Connections {
@@ -226,10 +231,12 @@ Page {
 
     NavigationTopPanel {
         id: navigationTopPanel
+        scale: page.navigationScale
+        transformOrigin: Item.TopLeft
+        width: (parent.width - 2 * page.buttonMargin) / scale
         anchors {
             top: parent.top
             left: parent.left
-            right: parent.right
             // margin_half around the Android turn card.
             margins: page.buttonMargin
             // Clear the camera notch in portrait, like the Silica PageHeader does.
@@ -238,7 +245,7 @@ Page {
         visible: page.navigating
         navigation: map.routing.navigation
         androidDp: page.androidDp
-        landscape: page.isLandscape
+        landscape: page.wideLayout
     }
 
     MapButton {
@@ -434,7 +441,7 @@ Page {
             bottom: navigationBottomPanel.top
             margins: page.buttonMargin
         }
-        visible: page.navigating
+        visible: page.navigating && !page.projected
         spacing: page.buttonMargin
 
         // The first tap offers categories to show on the map, the next opens search; a shown category or another
@@ -481,11 +488,13 @@ Page {
 
     NavigationBottomPanel {
         id: navigationBottomPanel
+        scale: page.navigationScale
+        transformOrigin: Item.BottomLeft
         anchors {
             left: parent.left
             bottom: parent.bottom
         }
-        width: page.isPortrait ? parent.width : Math.round(parent.width * 0.4)
+        width: (page.wideLayout ? Math.round(parent.width * 0.4) : parent.width) / scale
         radius: page.isPortrait ? 0 : Theme.paddingLarge
         visible: page.navigating
         navigation: map.routing.navigation

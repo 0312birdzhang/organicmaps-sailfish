@@ -109,6 +109,7 @@ MapItem::MapItem(QQuickItem * parent)
 
   connect(this, &QQuickItem::windowChanged, this, &MapItem::OnWindowChanged);
   connect(qGuiApp, &QGuiApplication::applicationStateChanged, this, &MapItem::OnApplicationStateChanged);
+  connect(this, &QQuickItem::visibleChanged, this, &MapItem::UpdateRenderingState);
   connect(m_routing.get(), &Routing::navigatingChanged, this, [this] { UpdateLocationService(); });
 
   m_storageSlot = m_framework.GetStorage().Subscribe([this](storage::CountryId const &) {
@@ -560,13 +561,26 @@ void MapItem::OnCompassReading()
 void MapItem::OnWindowChanged(QQuickWindow * window)
 {
   if (window)
+  {
+    connect(window, &QWindow::visibleChanged, this, &MapItem::UpdateRenderingState, Qt::UniqueConnection);
     CreateEngine();
+    UpdateRenderingState();
+  }
 }
 
-void MapItem::OnApplicationStateChanged(Qt::ApplicationState state)
+void MapItem::OnApplicationStateChanged(Qt::ApplicationState)
 {
-  // Sailfish keeps a minimized app running as its cover; stop drawing until it is active again.
-  bool const inBackground = state != Qt::ApplicationActive;
+  UpdateRenderingState();
+}
+
+void MapItem::UpdateRenderingState()
+{
+  // A projected window may lose phone activation on screen blank/focus changes.
+  // Keep drape alive while its car window is visible; normal phone covers still idle.
+  bool const projected = qgetenv("WAYLAND_DISPLAY").contains("imira-comp") &&
+                         qgetenv("SAILPLAY_NAVIGATION_EXPORT") == "1";
+  bool const projectedVisible = projected && window() && window()->isVisible() && isVisible();
+  bool const inBackground = QGuiApplication::applicationState() != Qt::ApplicationActive && !projectedVisible;
   if (!m_contextFactory || inBackground == m_inBackground)
     return;
 
@@ -645,6 +659,7 @@ void MapItem::CreateEngine()
 
   // E.g. a recording restored after a restart.
   UpdateLocationService();
+  UpdateRenderingState();
   emit engineCreated();
 }
 
