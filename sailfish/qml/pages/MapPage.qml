@@ -44,6 +44,9 @@ Page {
     // For the navigation and downloader layouts that keep the Android sizes.
     readonly property real androidDp: myPositionButton.androidDp
     readonly property real buttonMargin: Theme.paddingMedium
+    readonly property real mapButtonSize: projected
+        ? Math.min(Theme.itemSizeMedium, Math.max(Theme.iconSizeMedium + Theme.paddingSmall, height * 0.13))
+        : Theme.itemSizeMedium
     // While the user types on a keepsUserInput page, the action waits for it to close rather than drop the input.
     property var pendingAction
     // A long tap on the empty map toggles the map buttons, except while a route is planned or followed.
@@ -115,12 +118,35 @@ Page {
     }
     Component.onCompleted: {
         appSettings.applyMapAppearance(mapIsDark)
-        map.routing.restoreSavedRoute()
+        if (!projected)
+            map.routing.restoreSavedRoute()
         // A recording goes on after a restart.
         if (map.trackRecording)
             recordingNotification.publish()
     }
     Component.onDestruction: recordingNotification.close()
+
+    // Geometry-only diagnostics; never log route points or place names.
+    Timer {
+        id: layoutAudit
+        interval: 350
+        running: page.projected
+        onTriggered: if (page.projected) console.log("SAILPLAY_MAP_LAYOUT", JSON.stringify({
+            width: page.width, height: page.height, routeActive: map.routing.active,
+            routeOpen: routePanel.open, bottomTools: bottomButtons.visible,
+            buttonSize: page.mapButtonSize, routeWidth: routePanel.width * routePanel.scale
+        }))
+    }
+    Connections {
+        target: page
+        onWidthChanged: layoutAudit.restart()
+        onHeightChanged: layoutAudit.restart()
+    }
+    Connections {
+        target: map.routing
+        onPointsChanged: layoutAudit.restart()
+        onNavigatingChanged: layoutAudit.restart()
+    }
 
     // Recording keeps the device awake.
     KeepAlive {
@@ -249,6 +275,7 @@ Page {
     }
 
     MapButton {
+        size: page.mapButtonSize
         visible: !page.navigating && !page.choosingPosition && !page.fullscreen
         anchors {
             top: parent.top
@@ -288,6 +315,7 @@ Page {
         }
 
         MapButton {
+            size: page.mapButtonSize
             id: zoomInButton
             visible: appSettings.zoomButtons
             enabled: rightButtons.fits(zoomInButton)
@@ -297,6 +325,7 @@ Page {
             onClicked: map.zoomIn()
         }
         MapButton {
+            size: page.mapButtonSize
             id: zoomOutButton
             visible: appSettings.zoomButtons
             enabled: rightButtons.fits(zoomOutButton)
@@ -313,6 +342,7 @@ Page {
         }
         // Indexed by MapItem.MyPositionMode.
         MapButton {
+            size: page.mapButtonSize
             id: myPositionButton
             readonly property var icons: ["", "ic_location_off", "ic_not_follow", "ic_follow", "ic_follow_and_rotate"]
 
@@ -332,19 +362,23 @@ Page {
     // on Android.
     Row {
         id: bottomButtons
-        readonly property real inset: page.buttonMargin * (page.isPortrait ? 2 : 1)
+        readonly property real inset: page.buttonMargin * (page.isPortrait && !page.projected ? 2 : 1)
 
         visible: !page.navigating && !page.choosingPosition && !page.fullscreen
+                 && (!page.projected || !map.routing.active)
         // Positioned by x: switching between left and horizontalCenter anchors on rotation can leave both set.
-        x: page.isPortrait ? (parent.width - width) / 2 : inset
+        x: page.isPortrait && !page.projected ? (parent.width - width) / 2 : inset
         anchors {
             bottom: parent.bottom
             bottomMargin: page.buttonMargin
         }
-        spacing: (Math.min(parent.width, 6 * menuButton.width) - 2 * inset - 4 * menuButton.width) / 3
+        spacing: page.projected ? page.buttonMargin
+                 : (Math.min(parent.width, 6 * menuButton.width) - 2 * inset - 4 * menuButton.width) / 3
 
         MapButton {
+            size: page.mapButtonSize
             square: true
+            visible: !page.projected
             // The promos of the help button.
             source: Qt.resolvedUrl(appSettings.helpPromo === AppSettings.PromoCrowdfunding
                                    ? "../../icons/help/ic_crowdfunding.png"
@@ -354,18 +388,21 @@ Page {
             onClicked: pageStack.push(Qt.resolvedUrl("HelpPage.qml"))
         }
         MapButton {
+            size: page.mapButtonSize
             square: true
             source: "image://theme/icon-m-search"
             description: appInfo.localized("search")
             onClicked: page.openSearch()
         }
         MapButton {
+            size: page.mapButtonSize
             square: true
             source: "image://theme/icon-m-favorite"
             description: appInfo.localized("bookmarks")
             onClicked: page.openBookmarks()
         }
         MapButton {
+            size: page.mapButtonSize
             id: menuButton
             square: true
             source: "image://theme/icon-m-menu"
@@ -400,6 +437,7 @@ Page {
 
     // Under the navigation panel while navigating.
     MapButton {
+        size: page.mapButtonSize
         id: recordingButton
         anchors {
             top: page.navigating ? navigationTopPanel.top : parent.top
@@ -450,6 +488,7 @@ Page {
             spacing: page.buttonMargin
 
             MapButton {
+                size: page.mapButtonSize
                 // A search left from before navigation clears with a tap, so it shows the clear icon like
                 // ic_routing_search_off on Android.
                 source: quickSearch.key !== "" ? quickSearch.icon(quickSearch.key)
@@ -472,6 +511,7 @@ Page {
                 model: quickSearch.expanded ? quickSearch.keys : []
 
                 MapButton {
+                    size: page.mapButtonSize
                     source: quickSearch.icon(modelData)
                     monochrome: false
                     description: appInfo.localized(modelData)
@@ -480,6 +520,7 @@ Page {
             }
         }
         MapButton {
+            size: page.mapButtonSize
             source: "image://theme/icon-m-favorite"
             description: appInfo.localized("bookmarks")
             onClicked: page.openBookmarks()
@@ -742,6 +783,7 @@ Page {
 
     RoutePanel {
         id: routePanel
+        projected: page.projected
         routing: map.routing
         placePage: map.placePage
         onSearchClicked: page.openSearch()

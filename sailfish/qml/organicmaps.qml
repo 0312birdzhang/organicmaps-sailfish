@@ -28,7 +28,16 @@ ApplicationWindow {
     }
     allowedOrientations: defaultAllowedOrientations
     Component.onDestruction: downloadNotification.close()
-    Component.onCompleted: if (mapsStorage.moveFailed) Toast.showLong(appInfo.localized("move_maps_error"))
+    Component.onCompleted: {
+        // Phone soft keys reserve a strip even in landscape. The car has its own
+        // navigation and touch controls; change only this projected window.
+        if (sailplayProjected && appWindow["_softKeyBar"]) {
+            appWindow["_softKeyBar"].visible = false
+            appWindow["_softKeyBar"].height = 0
+        }
+        if (mapsStorage.moveFailed)
+            Toast.showLong(appInfo.localized("move_maps_error"))
+    }
 
     ShareAction {
         id: fileShare

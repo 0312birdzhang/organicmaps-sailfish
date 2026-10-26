@@ -11,6 +11,10 @@ MapPanel {
     id: panel
 
     // MapItem.routing; the uncreatable C++ type can't be a property type in Qt 5.6.
+    property bool projected: false
+    readonly property real uiScale: projected
+        ? Math.max(0.1, Math.min(1, parent.height / (600 * Theme.pixelRatio), parent.width / (1050 * Theme.pixelRatio))) : 1
+    readonly property real actionSize: projected ? Theme.itemSizeSmall : Theme.itemSizeMedium
     property QtObject routing
     property QtObject placePage
     readonly property bool shouldShow: routing.active && !routing.navigating && !placePage.open
@@ -19,7 +23,7 @@ MapPanel {
                                       && routing.points[routing.points.length - 1].type === Routing.Finish
     readonly property bool landscape: parent.width > parent.height
     // The map space the sheet covers from the bottom; none beside it in landscape.
-    readonly property real bottomInset: landscape ? 0 : visibleSize
+    readonly property real bottomInset: landscape ? 0 : visibleSize * uiScale
 
     // Empty slots and stops are picked like any place: from search, bookmarks or the map.
     signal searchClicked()
@@ -57,7 +61,11 @@ MapPanel {
         })
     }
 
-    width: landscape ? Math.round(parent.width / 2) : parent.width
+    scale: uiScale
+    transformOrigin: Item.BottomLeft
+    width: projected
+        ? (landscape ? Math.min(parent.width * 0.42, parent.height * 0.75) : parent.width) / uiScale
+        : landscape ? Math.round(parent.width / 2) : parent.width
     modal: false
     spacing: 0
     onShouldShowChanged: open = shouldShow
@@ -134,6 +142,8 @@ MapPanel {
                     }
                 }
                 IconButton {
+                    width: panel.actionSize
+                    height: panel.actionSize
                     id: closeButton
                     anchors {
                         right: parent.right
@@ -165,8 +175,17 @@ MapPanel {
                         running: routing.building
                     }
                     // "24 min • (walk) 810 m" for transit.
+                    Label {
+                        width: parent.width
+                        visible: panel.projected && routing.built
+                        text: routing.summary + (routing.arrival ? " • " + routing.arrival : "")
+                              + (routing.walkingDistance ? " • " + routing.walkingDistance : "")
+                        font.bold: true
+                        font.pixelSize: Theme.fontSizeSmall
+                        wrapMode: Text.Wrap
+                    }
                     Row {
-                        visible: routing.built
+                        visible: routing.built && !panel.projected
                         spacing: Theme.paddingSmall
 
                         Label {
@@ -282,6 +301,8 @@ MapPanel {
                     }
 
                     IconButton {
+                        width: panel.actionSize
+                        height: panel.actionSize
                         enabled: routing.canReverse
                         icon.source: "image://theme/icon-m-transfer"
                         icon.sourceSize: Qt.size(Theme.iconSizeMedium, Theme.iconSizeMedium)
@@ -289,6 +310,8 @@ MapPanel {
                         onClicked: routing.reverseRoute()
                     }
                     IconButton {
+                        width: panel.actionSize
+                        height: panel.actionSize
                         id: optionsButton
                         // A badge for avoided roads.
                         readonly property int avoidedCount: [Routing.Toll, Routing.Dirty, Routing.Ferry,
@@ -508,12 +531,16 @@ MapPanel {
         height: Theme.itemSizeMedium
 
         IconButton {
+            width: panel.actionSize
+            height: panel.actionSize
             anchors.verticalCenter: parent.verticalCenter
             icon.source: "image://theme/icon-m-search"
             Accessible.name: appInfo.localized("search")
             onClicked: panel.searchClicked()
         }
         IconButton {
+            width: panel.actionSize
+            height: panel.actionSize
             anchors.verticalCenter: parent.verticalCenter
             icon.source: "image://theme/icon-m-favorite"
             Accessible.name: appInfo.localized("bookmarks")
@@ -521,6 +548,8 @@ MapPanel {
         }
         // Saves the route as a track, once per built route.
         IconButton {
+            width: panel.actionSize
+            height: panel.actionSize
             anchors.verticalCenter: parent.verticalCenter
             icon.source: "image://theme/icon-m-downloads"
             Accessible.name: appInfo.localized("save")
