@@ -118,6 +118,10 @@ Page {
     }
     Component.onCompleted: {
         appSettings.applyMapAppearance(mapIsDark)
+        // Soft-key aware Silica versions expose this typed page property.
+        // Overlay mode removes their rotated strip from the car map viewport.
+        if (projected && "softKeys" in page)
+            page["softKeys"] = Qt.createQmlObject('import Sailfish.Silica 1.0; SoftKeys { overlay: true }', page)
         if (!projected)
             map.routing.restoreSavedRoute()
         // A recording goes on after a restart.

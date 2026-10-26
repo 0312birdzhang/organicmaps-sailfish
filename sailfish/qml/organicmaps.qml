@@ -35,6 +35,8 @@ ApplicationWindow {
             appWindow["_softKeyBar"].visible = false
             appWindow["_softKeyBar"].height = 0
         }
+        if (sailplayProjected)
+            console.log("SAILPLAY_SOFTKEY_LAYOUT", !!appWindow["_softKeyBar"])
         if (mapsStorage.moveFailed)
             Toast.showLong(appInfo.localized("move_maps_error"))
     }
