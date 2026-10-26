@@ -27,6 +27,8 @@ ApplicationWindow {
         }
     }
     allowedOrientations: defaultAllowedOrientations
+    // The virtual car output has no phone camera cutout.
+    defaultPageCutoutMode: sailplayProjected ? 0 : CutoutMode.AvoidLandscapeCutout
     Component.onDestruction: downloadNotification.close()
     Component.onCompleted: {
         // Phone soft keys reserve a strip even in landscape. The car has its own
