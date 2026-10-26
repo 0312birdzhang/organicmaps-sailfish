@@ -60,7 +60,14 @@ ApplicationWindow {
 
     Connections {
         target: urlHandler
-        onActivated: activate()
+        onActivated: {
+            // ApplicationWindow.activate() also restores the physical full-screen
+            // geometry. The car compositor already owns this window's viewport.
+            if (sailplayProjected)
+                appWindow.__quickWindow.requestActivate()
+            else
+                activate()
+        }
         onCancelDownloadsRequested: downloads.cancelAll()
     }
 
