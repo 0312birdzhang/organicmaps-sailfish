@@ -14,7 +14,7 @@ MapPanel {
     property bool projected: false
     readonly property real uiScale: projected
         ? Math.max(0.1, Math.min(1, parent.height / (600 * Theme.pixelRatio), parent.width / (1050 * Theme.pixelRatio))) : 1
-    readonly property real actionSize: projected ? Theme.itemSizeSmall : Theme.itemSizeMedium
+    readonly property real actionSize: Theme.itemSizeSmall
     property QtObject routing
     property QtObject placePage
     readonly property bool shouldShow: routing.active && !routing.navigating && !placePage.open
