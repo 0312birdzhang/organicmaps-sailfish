@@ -629,7 +629,13 @@ void MapItem::CreateEngine()
 
   m_skin = std::make_unique<gui::Skin>(gui::ResolveGuiSkinFile("default"), m_visualScale);
   m_skin->Resize(p.m_surfaceWidth, p.m_surfaceHeight);
-  m_skin->ForEach([&p](gui::EWidget widget, gui::Position const & pos) { p.m_widgetsInitInfo[widget] = pos; });
+  bool const projected = qgetenv("WAYLAND_DISPLAY").contains("imira-comp") &&
+                         qgetenv("SAILPLAY_NAVIGATION_EXPORT") == "1";
+  m_skin->ForEach([&p, projected](gui::EWidget widget, gui::Position const & pos)
+  {
+    if (!projected || widget != gui::WIDGET_COPYRIGHT)
+      p.m_widgetsInitInfo[widget] = pos;
+  });
 
   m_framework.SetMyPositionModeListener([this](location::EMyPositionMode mode, bool /* routingActive */)
   { OnMyPositionModeChanged(mode); });

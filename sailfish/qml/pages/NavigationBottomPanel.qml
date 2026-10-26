@@ -94,7 +94,8 @@ Item {
                         id: speedNumber
                         anchors.horizontalCenter: parent.horizontalCenter
                         value: navigation.speed || ""
-                        units: navigation.speedUnits || ""
+                        units: sailplayProjected ? (appSettings.units === 0 ? "km/h" : "mph")
+                                                  : navigation.speedUnits || ""
                         valueColor: speedView.camAlert ? Theme.lightPrimaryColor
                                   : navigation.speedLimitExceeded ? "#f51e30" : Theme.primaryColor
                         unitsColor: speedView.camAlert ? Theme.lightPrimaryColor : Theme.secondaryColor

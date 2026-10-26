@@ -280,7 +280,7 @@ Page {
 
     MapButton {
         size: page.mapButtonSize
-        visible: !page.navigating && !page.choosingPosition && !page.fullscreen
+        visible: !page.projected && !page.navigating && !page.choosingPosition && !page.fullscreen
         anchors {
             top: parent.top
             topMargin: page.topInset + page.buttonMargin
