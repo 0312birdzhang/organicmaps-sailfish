@@ -2,6 +2,11 @@
 # Sailjail profile of Organic Maps, applied with the permissions of organicmaps.desktop. Not in the Harbour
 # package, which may have no profile of its own.
 
+# Directed SDK updates to the caller's temporary client name.
+dbus-user.call org.sailplay.Client.*=org.sailplay.Session1.StateChanged@/org/sailplay/v1/*
+dbus-user.call org.sailplay.Client.*=org.sailplay.Session1.RequestFinished@/org/sailplay/v1/*
+dbus-user.call org.sailplay.Client.*=org.sailplay.Navigation1.GuidanceChanged@/org/sailplay/v1/*
+
 # Voice instructions: Speech Note when installed, which speaks with natural voices.
 dbus-user.talk org.mkiol.Speech
 # Opens Speech Note to download voices.
