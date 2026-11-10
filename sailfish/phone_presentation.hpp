@@ -2,12 +2,14 @@
 
 #include <QObject>
 #include <QQuickView>
+#include <QString>
 #include <QUrl>
 
 #include <functional>
 #include <memory>
 
 class QQmlContext;
+class QQmlEngine;
 
 namespace sailfish
 {
@@ -32,6 +34,8 @@ protected:
 private:
   QUrl m_source;
   std::function<void(QQmlContext *)> m_setup;
+  QString m_title;
+  std::unique_ptr<QQmlEngine> m_engine;
   std::unique_ptr<QQuickView> m_view;
   bool m_closing = false;
 };

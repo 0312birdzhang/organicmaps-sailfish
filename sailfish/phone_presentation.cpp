@@ -3,6 +3,7 @@
 #include "base/logging.hpp"
 
 #include <QEvent>
+#include <QQmlEngine>
 #include <QQmlError>
 #include <QTimer>
 
@@ -29,7 +30,21 @@ bool PhonePresentation::Show()
     Close();
   if (!m_view)
   {
-    m_view.reset(SailfishApp::createView());
+    if (m_engine)
+    {
+      m_view = std::make_unique<QQuickView>(m_engine.get(), nullptr);
+      m_view->setTitle(m_title);
+      m_view->setResizeMode(QQuickView::SizeRootObjectToView);
+    }
+    else
+    {
+      m_view.reset(SailfishApp::createView());
+      // Silica's asynchronous component callbacks can outlive their original window.
+      // Keep their engine while releasing and rebuilding the phone QML tree and view.
+      m_engine.reset(m_view->engine());
+      m_engine->setParent(nullptr);
+      m_title = m_view->title();
+    }
     m_setup(m_view->rootContext());
     m_view->setSource(m_source);
     if (m_view->status() != QQuickView::Ready)

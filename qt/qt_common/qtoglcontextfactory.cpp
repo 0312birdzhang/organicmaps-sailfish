@@ -91,7 +91,16 @@ void QtOGLContextFactory::WaitForInitialization(dp::GraphicsContext * context)
     m_contextsCreated.wait();
   }
   else
+  {
+    {
+      // Some EGL bridges share an unsynchronized map of fallback offscreen windows.
+      // Create their native surfaces serially before either renderer or the GUI uses them.
+      std::lock_guard lock(m_initializationMutex);
+      context->MakeCurrent();
+    }
     m_contextsCreated.count_down();
+    m_contextsCreated.wait();
+  }
 }
 
 std::unique_ptr<QOffscreenSurface> QtOGLContextFactory::CreateSurface()

@@ -8,6 +8,7 @@
 #include <functional>
 #include <latch>
 #include <memory>
+#include <mutex>
 
 namespace qt
 {
@@ -47,6 +48,7 @@ private:
   std::unique_ptr<QOffscreenSurface> m_uploadSurface;
   bool m_preparedToShutdown = false;
 
+  std::mutex m_initializationMutex;
   std::latch m_mainThreadReady = std::latch(1);
   std::latch m_contextsCreated = std::latch(2);
 };

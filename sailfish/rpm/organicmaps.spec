@@ -10,7 +10,11 @@ Summary:    Offline maps and navigation based on OpenStreetMap
 Version:    %(bash tools/unix/version.sh ios_version)
 Release:    %(bash tools/unix/version.sh count)
 # The map data files are under DATA_LICENSE.txt.
+%if %{with sailplay}
+License:    Apache-2.0 AND GPL-3.0-or-later
+%else
 License:    Apache-2.0
+%endif
 URL:        https://organicmaps.app
 # For source package builds, e.g. Chum's OBS; sfdk builds in place, where %%setup does nothing.
 Source0:    %{name}-%{version}.tar.bz2
@@ -31,7 +35,7 @@ BuildRequires:  pkgconfig(glesv2)
 BuildRequires:  pkgconfig(mlite5)
 BuildRequires:  pkgconfig(libpulse-simple)
 %if %{with sailplay}
-%{!?sailplay_sdk_qt_dir:BuildRequires: harbour-sailplay >= 0.1.1-63}
+%{!?sailplay_sdk_qt_dir:BuildRequires: harbour-sailplay >= 0.1.1-64}
 %endif
 # QML modules, the linked Qt libraries are found automatically. Harbour allows no Requires for the other
 # imported modules, which are on every device.
