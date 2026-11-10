@@ -283,7 +283,7 @@ public:
   /// \brief It loads road points from file and delete file after loading.
   /// The result of the loading will be sent via SafeCallback.
   using LoadRouteHandler = platform::SafeCallback<void(bool success)>;
-  void LoadRoutePoints(LoadRouteHandler const & handler);
+  void LoadRoutePoints(LoadRouteHandler const & handler, std::function<bool()> const & canApply = {});
   /// \brief It saves route points to file.
   void SaveRoutePoints();
   /// \brief It deletes file with saved route points if it exists.

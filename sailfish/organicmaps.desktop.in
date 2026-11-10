@@ -9,13 +9,14 @@ MimeType=application/vnd.google-earth.kml+xml;application/vnd.google-earth.kmz;a
 X-Maemo-Service=@DBUS_SERVICE@
 X-Maemo-Object-Path=@DBUS_PATH@
 X-Maemo-Method=@DBUS_SERVICE@.openUrl
+@SAILPLAY_METADATA@
 
 [X-Sailjail]
 # Both packages keep their data in the same place, ~/.local/share/app.organicmaps/organicmaps.
 OrganizationName=app.organicmaps
 ApplicationName=organicmaps
 # Sailjail starts the app for the launcher's openUrl calls on OrganizationName.ApplicationName, the X-Maemo-Service.
-ExecDBus=@APP_NAME@
+ExecDBus=@APP_NAME@ --background
 # UserDirs and RemovableMedia: imported files, backups and maps on a memory card. Notifications and sharing are in
 # the base permissions.
 Permissions=Audio;Internet;Location;UserDirs;RemovableMedia

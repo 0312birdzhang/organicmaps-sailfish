@@ -1,6 +1,8 @@
 project(organicmaps_sailfish)
 
 option(SAILFISH_HARBOUR "Build the Jolla Harbour package: harbour- name, no Sailjail profile and no voice" OFF)
+option(SAILPLAY "Export the shared navigation backend through the Sailplay SDK" OFF)
+set(SAILPLAY_SDK_QT_DIR /usr/share/sailplay-sdk/qt CACHE PATH "Sailplay Qt source SDK directory")
 # libsailfishapp finds the data, desktop file and main QML by the executable name; Harbour requires its prefix.
 if (SAILFISH_HARBOUR)
   set(APP_NAME harbour-organicmaps)
@@ -46,6 +48,8 @@ set(SRC
   helpers.hpp
   map_item.cpp
   map_item.hpp
+  map_surface.cpp
+  map_surface.hpp
   maps_storage.cpp
   maps_storage.hpp
   media_pause.cpp
@@ -60,6 +64,8 @@ set(SRC
   place_editor.hpp
   place_page.cpp
   place_page.hpp
+  phone_presentation.cpp
+  phone_presentation.hpp
   prompt_player.cpp
   prompt_player.hpp
   routing.cpp
@@ -101,6 +107,18 @@ target_link_libraries(${PROJECT_NAME}_lib
     ${MLITE_LIBRARIES}
     ${PULSE_LIBRARIES}
 )
+
+set(SAILPLAY_METADATA "")
+if (SAILPLAY)
+  if (SAILFISH_HARBOUR)
+    message(FATAL_ERROR "The Sailplay backend requires the application's Sailjail service identity")
+  endif()
+  add_subdirectory("${SAILPLAY_SDK_QT_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/sailplay-sdk")
+  target_sources(${PROJECT_NAME}_lib PRIVATE sailplay_navigation.cpp sailplay_navigation.hpp)
+  target_link_libraries(${PROJECT_NAME}_lib PRIVATE sailplay_sdk_provider)
+  target_compile_definitions(${PROJECT_NAME}_lib PRIVATE OMIM_SAILPLAY)
+  set(SAILPLAY_METADATA "X-Sailplay-ApiVersion=1\nX-Sailplay-Service=${DBUS_SERVICE}\nX-Sailplay-ObjectPath=/org/sailplay/v1/App\nX-Sailplay-Presentation=template\nX-Sailplay-Capabilities=navigation;")
+endif()
 
 add_executable(${PROJECT_NAME} main.cpp)
 set_target_properties(${PROJECT_NAME} PROPERTIES

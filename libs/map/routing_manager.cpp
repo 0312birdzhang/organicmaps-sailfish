@@ -1703,9 +1703,9 @@ bool RoutingManager::HasSavedRoutePoints() const
   return GetPlatform().IsFileExistsByFullPath(fileName);
 }
 
-void RoutingManager::LoadRoutePoints(LoadRouteHandler const & handler)
+void RoutingManager::LoadRoutePoints(LoadRouteHandler const & handler, std::function<bool()> const & canApply)
 {
-  GetPlatform().RunTask(Platform::Thread::File, [this, handler]()
+  GetPlatform().RunTask(Platform::Thread::File, [this, handler, canApply]()
   {
     if (!HasSavedRoutePoints())
     {
@@ -1738,8 +1738,14 @@ void RoutingManager::LoadRoutePoints(LoadRouteHandler const & handler)
       return;
     }
 
-    GetPlatform().RunTask(Platform::Thread::Gui, [this, handler, points = std::move(points)]() mutable
+    GetPlatform().RunTask(Platform::Thread::Gui, [this, handler, canApply, points = std::move(points)]() mutable
     {
+      if (canApply && !canApply())
+      {
+        if (handler)
+          handler(false /* success */);
+        return;
+      }
       ASSERT(m_bmManager != nullptr, ());
       // If we have found my position and the saved route used the user's position, we use my position as start point.
       bool routeUsedPosition = false;

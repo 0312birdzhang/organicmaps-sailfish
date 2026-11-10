@@ -1,6 +1,7 @@
 # The Jolla Harbour package, harbour-organicmaps without voice instructions, is built with "--with harbour",
 # e.g. sfdk build -- --with harbour.
 %bcond_with harbour
+%bcond_with sailplay
 
 Name:       %{?with_harbour:harbour-}organicmaps
 Summary:    Offline maps and navigation based on OpenStreetMap
@@ -29,6 +30,9 @@ BuildRequires:  pkgconfig(sailfishapp)
 BuildRequires:  pkgconfig(glesv2)
 BuildRequires:  pkgconfig(mlite5)
 BuildRequires:  pkgconfig(libpulse-simple)
+%if %{with sailplay}
+%{!?sailplay_sdk_qt_dir:BuildRequires: harbour-sailplay >= 0.1.1-63}
+%endif
 # QML modules, the linked Qt libraries are found automatically. Harbour allows no Requires for the other
 # imported modules, which are on every device.
 Requires:       sailfishsilica-qt5
@@ -72,6 +76,8 @@ cmake -S . -B build -G Ninja \
   -DCMAKE_INSTALL_PREFIX=%{_prefix} \
   -DSAILFISH=ON \
   -DSAILFISH_HARBOUR=%{?with_harbour:ON}%{!?with_harbour:OFF} \
+  -DSAILPLAY=%{?with_sailplay:ON}%{!?with_sailplay:OFF} \
+  %{?sailplay_sdk_qt_dir:-DSAILPLAY_SDK_QT_DIR=%{sailplay_sdk_qt_dir}} \
   -DBUILD_TESTING=OFF
 cmake --build build --target organicmaps_sailfish
 

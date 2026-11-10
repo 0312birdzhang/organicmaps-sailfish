@@ -161,12 +161,14 @@ public:
   bool routeSaved() const { return m_routeSaved; }
   bool navigating() const { return m_navigating; }
   QVariantMap navigation() const { return m_navigation; }
+  QJsonObject NavigationSnapshot() const { return m_navigationExport.Snapshot(); }
   bool darkOutside() const { return m_darkOutside; }
 
   // Called on every location update.
   void UpdateNavigation(double speedMps);
   // Rebuilds a route that failed for lack of a position.
   void OnPositionFound();
+  bool HasBackgroundWork() const;
 
   // Use the place shown in the place page.
   Q_INVOKABLE void routeFromPlace();
@@ -234,6 +236,7 @@ signals:
   void navigatingChanged();
   // With every position while navigating.
   void navigationChanged();
+  void guidanceChanged();
   void voiceChanged();
   void disclaimerChanged();
   void pickChanged();
@@ -280,6 +283,7 @@ private:
   Framework & m_framework;
   NavigationExport m_navigationExport;
   bool m_building = false;
+  bool m_loadingSavedRoute = false;
   bool m_buildCancelled = false;
   // Changes on every build and close, so that a queued result of an earlier one is dropped.
   uint32_t m_resultGeneration = 0;

@@ -231,6 +231,10 @@ void Framework::OnLocationUpdate(GpsInfo const & info)
 #endif
 
   m_routingManager.OnLocationUpdate(rInfo);
+  // Background clients can keep navigation and recording alive without a map presentation. Drape reports the
+  // matched arrow position while it exists. Otherwise the backend owns the current position from the fix.
+  if (!m_drapeEngine)
+    OnUserPositionChanged(mercator::FromLatLon(rInfo.m_latitude, rInfo.m_longitude), true);
 }
 
 void Framework::OnCompassUpdate(CompassInfo const & info)
@@ -446,6 +450,7 @@ Framework::Framework(FrameworkParams const & params, bool loadMaps)
 
 Framework::~Framework()
 {
+  SetTrackRecordingUpdateHandler({});
   GetPowerManager().UnsubscribeAll();
 
   m_threadRunner.reset();
@@ -1736,6 +1741,8 @@ m2::PointD Framework::P3dtoG(m2::PointD const & p) const
 
 void Framework::CreateDrapeEngine(ref_ptr<dp::GraphicsContextFactory> contextFactory, DrapeCreationParams && params)
 {
+  // Recording callbacks run on the GPS worker. Detach before replacing their render target.
+  GpsTracker::Instance().Disconnect();
   auto idReadFn = [this](auto const & fn, m2::RectD const & r, int scale)
   {
     m_featuresFetcher.ForEachFeatureID(r, fn, scale);
@@ -1877,6 +1884,8 @@ void Framework::CreateDrapeEngine(ref_ptr<dp::GraphicsContextFactory> contextFac
   m_transitManager.SetDrapeEngine(make_ref(m_drapeEngine));
   m_isolinesManager.SetDrapeEngine(make_ref(m_drapeEngine));
   m_searchMarks.SetDrapeEngine(make_ref(m_drapeEngine));
+  if (m_routingManager.IsRoutingFollowing())
+    OnRouteFollow(m_routingManager.GetRouter());
 
   InvalidateUserMarks();
 
@@ -1932,6 +1941,8 @@ ref_ptr<df::DrapeEngine> Framework::GetDrapeEngine()
 
 void Framework::DestroyDrapeEngine()
 {
+  auto & tracker = GpsTracker::Instance();
+  tracker.Disconnect();
   if (m_drapeEngine != nullptr)
   {
     m_drapeApi.SetDrapeEngine(nullptr);
@@ -1943,9 +1954,10 @@ void Framework::DestroyDrapeEngine()
     GetBookmarkManager().SetDrapeEngine(nullptr);
 
     m_trafficManager.Teardown();
-    GpsTracker::Instance().Disconnect();
     m_drapeEngine.reset();
   }
+  if (m_trackRecordingUpdateHandler && tracker.IsEnabled())
+    tracker.Connect(std::bind(&Framework::OnUpdateGpsTrackPointsCallback, this, _1, _2, _3));
 }
 
 void Framework::SetRenderingEnabled(ref_ptr<dp::GraphicsContextFactory> contextFactory)
@@ -1978,17 +1990,19 @@ void Framework::StartTrackRecording()
   auto & tracker = GpsTracker::Instance();
   tracker.SetEnabled(true);
   if (m_drapeEngine)
-  {
     m_drapeEngine->ClearGpsTrackPoints();
-    tracker.Connect(std::bind(&Framework::OnUpdateGpsTrackPointsCallback, this, _1, _2, _3));
-  }
+  tracker.Connect(std::bind(&Framework::OnUpdateGpsTrackPointsCallback, this, _1, _2, _3));
 }
 
 void Framework::SetTrackRecordingUpdateHandler(TrackRecordingUpdateHandler && trackRecordingDidUpdate)
 {
+  auto & tracker = GpsTracker::Instance();
+  tracker.Disconnect();
   m_trackRecordingUpdateHandler = std::move(trackRecordingDidUpdate);
+  if (tracker.IsEnabled() && (m_drapeEngine || m_trackRecordingUpdateHandler))
+    tracker.Connect(std::bind(&Framework::OnUpdateGpsTrackPointsCallback, this, _1, _2, _3));
   if (m_trackRecordingUpdateHandler)
-    m_trackRecordingUpdateHandler(GpsTracker::Instance().GetTrackStatistics());
+    m_trackRecordingUpdateHandler(tracker.GetTrackStatistics());
 }
 
 ElevationInfo const & Framework::GetTrackRecordingElevationInfo()
@@ -2035,7 +2049,10 @@ void Framework::OnUpdateGpsTrackPointsCallback(std::vector<std::pair<size_t, loc
                                                std::pair<size_t, size_t> const & toRemove,
                                                TrackStatistics const & trackStatistics)
 {
-  ASSERT(m_drapeEngine, ());
+  if (m_trackRecordingUpdateHandler)
+    m_trackRecordingUpdateHandler(trackStatistics);
+  if (!m_drapeEngine)
+    return;
 
   std::vector<df::GpsTrackPoint> pointsAdd;
   pointsAdd.reserve(toAdd.size());
@@ -2061,8 +2078,6 @@ void Framework::OnUpdateGpsTrackPointsCallback(std::vector<std::pair<size_t, loc
 
   m_drapeEngine->UpdateGpsTrackPoints(std::move(pointsAdd), std::move(indicesRemove));
 
-  if (m_trackRecordingUpdateHandler)
-    m_trackRecordingUpdateHandler(trackStatistics);
 }
 
 void Framework::MarkMapStyle(MapStyle mapStyle)
@@ -3872,7 +3887,9 @@ void Framework::OnRouteFollow(routing::RouterType type)
   // GetRoutingSettings(type).m_matchRoute to the FollowRoute() instead of |isPedestrianRoute|.
   // |isArrowGlued| parameter fully corresponds to |m_matchRoute| in RoutingSettings.
   // For pedestrian and bicycle modes, use compass heading when stopped (isArrowGlued = false).
-  m_drapeEngine->FollowRoute(scale, scale3d, enableAutoZoom, !(isPedestrianRoute || isBicycleRoute) /* isArrowGlued */);
+  if (m_drapeEngine)
+    m_drapeEngine->FollowRoute(scale, scale3d, enableAutoZoom,
+                               !(isPedestrianRoute || isBicycleRoute) /* isArrowGlued */);
 }
 
 // RoutingManager::Delegate

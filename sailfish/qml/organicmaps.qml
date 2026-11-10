@@ -1,13 +1,10 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
 import Sailfish.Share 1.0
-import Nemo.KeepAlive 1.2
-import Nemo.Notifications 1.0
 import app.organicmaps 1.0
 import "cover"
 import "pages"
 import "pages/notices.js" as Toast
-import "pages/notifications.js" as Notifications
 
 ApplicationWindow {
     id: appWindow
@@ -29,7 +26,6 @@ ApplicationWindow {
     allowedOrientations: defaultAllowedOrientations
     // The virtual car output has no phone camera cutout.
     defaultPageCutoutMode: sailplayProjected ? 0 : CutoutMode.AvoidLandscapeCutout
-    Component.onDestruction: downloadNotification.close()
     Component.onCompleted: {
         // Phone soft keys reserve a strip even in landscape. The car has its own
         // navigation and touch controls; change only this projected window.
@@ -68,7 +64,6 @@ ApplicationWindow {
             else
                 activate()
         }
-        onCancelDownloadsRequested: downloads.cancelAll()
     }
 
     // Offered once, when the user is on the map: e.g. a start by a link opens other pages first.
@@ -110,47 +105,4 @@ ApplicationWindow {
         onBusyChanged: offerUpdate()
     }
 
-    // Keep the device from suspending while maps download, so a blanked screen doesn't stall them.
-    KeepAlive {
-        enabled: downloads.inProgress
-    }
-
-    // No preview, so progress updates stay silent.
-    Notification {
-        id: downloadNotification
-        appName: "Organic Maps"
-        appIcon: appInfo.name
-        summary: appInfo.localized("downloader_downloading") + " " + downloads.downloadingName
-        progress: downloads.downloadingProgress
-        remoteActions: [Notifications.openApp(),
-                        Notifications.action("cancel", appInfo.localized("cancel"), "cancelDownloads")]
-    }
-    // Progress comes often; the notification follows it every few seconds.
-    Timer {
-        running: downloads.inProgress && downloads.downloadingName !== ""
-        repeat: true
-        triggeredOnStart: true
-        interval: 3000
-        onTriggered: downloadNotification.publish()
-    }
-    Connections {
-        target: downloads
-        onInProgressChanged: if (!downloads.inProgress) downloadNotification.close()
-        // Failures are shown in the app; notify only when it is in the background.
-        onDownloadFailed: {
-            if (Qt.application.state === Qt.ApplicationActive)
-                return
-            failedNotification.body = appInfo.localized("download_country_failed", [name])
-            failedNotification.previewBody = failedNotification.body
-            failedNotification.publish()
-        }
-    }
-    Notification {
-        id: failedNotification
-        appName: "Organic Maps"
-        appIcon: appInfo.name
-        summary: "Organic Maps"
-        previewSummary: summary
-        remoteActions: [Notifications.openApp()]
-    }
 }

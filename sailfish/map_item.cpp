@@ -118,6 +118,9 @@ MapItem::MapItem(QQuickItem * parent)
 
   m_simulationTimer.setInterval(1000);
   connect(&m_simulationTimer, &QTimer::timeout, this, &MapItem::SimulateLocation);
+  m_framework.SetUserPositionListener([this](bool hasPosition) { OnUserPositionChanged(hasPosition); });
+  WatchRecording();
+  UpdateLocationService();
 }
 
 MapItem::~MapItem()
@@ -130,6 +133,11 @@ MapItem::~MapItem()
   m_framework.SetUserPositionListener(nullptr);
   m_framework.GetStorage().Unsubscribe(m_storageSlot);
   m_locationService->Stop();
+  DestroyEngine();
+}
+
+void MapItem::DestroyEngine()
+{
   if (!m_contextFactory)
     return;
 
@@ -138,6 +146,7 @@ MapItem::~MapItem()
   m_contextFactory->PrepareToShutdown();
   m_framework.DestroyDrapeEngine();
   m_contextFactory.reset();
+  m_skin.reset();
 }
 
 void MapItem::zoomIn()
@@ -564,8 +573,12 @@ void MapItem::OnWindowChanged(QQuickWindow * window)
   {
     connect(window, &QWindow::visibleChanged, this, &MapItem::UpdateRenderingState, Qt::UniqueConnection);
     CreateEngine();
-    UpdateRenderingState();
   }
+  else
+  {
+    DestroyEngine();
+  }
+  UpdateRenderingState();
 }
 
 void MapItem::OnApplicationStateChanged(Qt::ApplicationState)
@@ -580,8 +593,10 @@ void MapItem::UpdateRenderingState()
   // follows the app process, which Sailplay retires on session end.
   bool const projected = qgetenv("WAYLAND_DISPLAY").contains("imira-comp") &&
                          qgetenv("SAILPLAY_NAVIGATION_EXPORT") == "1";
-  bool const inBackground = !projected && QGuiApplication::applicationState() != Qt::ApplicationActive;
-  if (!m_contextFactory || inBackground == m_inBackground)
+  bool const inBackground =
+      !window() ||
+      (!projected && (!window()->isVisible() || QGuiApplication::applicationState() != Qt::ApplicationActive));
+  if (inBackground == m_inBackground)
     return;
 
   m_inBackground = inBackground;
@@ -639,7 +654,6 @@ void MapItem::CreateEngine()
 
   m_framework.SetMyPositionModeListener([this](location::EMyPositionMode mode, bool /* routingActive */)
   { OnMyPositionModeChanged(mode); });
-  m_framework.SetUserPositionListener([this](bool hasPosition) { OnUserPositionChanged(hasPosition); });
   m_framework.GetIsolinesManager().SetStateListener([this](IsolinesManager::IsolinesState state)
   {
     GetPlatform().RunTask(Platform::Thread::Gui, [self = QPointer<MapItem>(this), state]
@@ -658,6 +672,7 @@ void MapItem::CreateEngine()
   // A recording goes on after a restart.
   WatchRecording();
   m_framework.EnterForeground();
+  m_inBackground = false;
   m_contextFactory->WaitForInitialization(nullptr);
   UpdateWidgetLayout();
   UpdateVisibleViewport();

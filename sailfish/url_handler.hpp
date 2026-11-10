@@ -30,6 +30,8 @@ public:
 public slots:
   // The X-Maemo-Method of organicmaps.desktop.
   Q_SCRIPTABLE void openUrl(QStringList const & urls);
+  Q_SCRIPTABLE void Show();
+  Q_SCRIPTABLE void Close();
   // Notification actions.
   Q_SCRIPTABLE void cancelDownloads();
   Q_SCRIPTABLE void stopTrackRecording();
@@ -37,6 +39,8 @@ public slots:
 private:
   UrlHandler * m_handler = nullptr;
   QStringList m_queued;
+  bool m_activationQueued = false;
+  bool m_closeQueued = false;
 };
 
 // Opens bookmark and track files, and geo:, om://, ge0:// and https://omaps.app links. They come as arguments or
@@ -59,6 +63,7 @@ public:
 
 signals:
   void activated();
+  void phoneCloseRequested();
   // Points as {lat, lon, name}, from start to finish.
   void routeRequested(int routerType, QVariantList const & points);
   // The locale is empty when the link has none.

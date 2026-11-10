@@ -54,8 +54,16 @@ void DBusInbox::OpenInRunningApp(QStringList const & urls)
 void DBusInbox::SetHandler(UrlHandler & handler)
 {
   m_handler = &handler;
-  if (!m_queued.isEmpty())
+  if (m_activationQueued)
+  {
+    m_activationQueued = false;
     handler.openUrl(std::exchange(m_queued, {}));
+  }
+  if (m_closeQueued)
+  {
+    m_closeQueued = false;
+    emit handler.phoneCloseRequested();
+  }
 }
 
 void DBusInbox::openUrl(QStringList const & urls)
@@ -63,7 +71,24 @@ void DBusInbox::openUrl(QStringList const & urls)
   if (m_handler)
     m_handler->openUrl(urls);
   else
+  {
     m_queued.append(urls);
+    m_activationQueued = true;
+    m_closeQueued = false;
+  }
+}
+
+void DBusInbox::Show()
+{
+  openUrl({});
+}
+
+void DBusInbox::Close()
+{
+  if (m_handler)
+    emit m_handler->phoneCloseRequested();
+  else
+    m_closeQueued = true;
 }
 
 void DBusInbox::cancelDownloads()

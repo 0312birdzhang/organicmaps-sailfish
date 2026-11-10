@@ -1,19 +1,18 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
 import Nemo.KeepAlive 1.2
-import Nemo.Notifications 1.0
 import app.organicmaps 1.0
 import "clipboard.js" as ClipboardHelper
 import "downloads.js" as Downloads
 import "icons.js" as Icons
 import "notices.js" as Toast
-import "notifications.js" as Notifications
 
 Page {
     id: page
 
     // For children, where "map: map" would bind to their own property.
     readonly property QtObject mapItem: map
+    readonly property QtObject map: mapCore
     readonly property bool projected: sailplayProjected
     // Phone theme metrics are too large for a short car viewport, including split view.
     readonly property real navigationScale: projected
@@ -124,11 +123,7 @@ Page {
             page["softKeys"] = Qt.createQmlObject('import Sailfish.Silica 1.0; SoftKeys { overlay: true }', page)
         if (!projected)
             map.routing.restoreSavedRoute()
-        // A recording goes on after a restart.
-        if (map.trackRecording)
-            recordingNotification.publish()
     }
-    Component.onDestruction: recordingNotification.close()
 
     // Geometry-only diagnostics; never log route points or place names.
     Timer {
@@ -152,33 +147,46 @@ Page {
         onNavigatingChanged: layoutAudit.restart()
     }
 
-    // Recording keeps the device awake.
-    KeepAlive {
-        enabled: map.trackRecording || map.routing.navigating
-    }
     DisplayBlanking {
         preventBlanking: (appSettings.keepScreenOn || map.routing.navigating) && Qt.application.active
     }
 
 
-    MapItem {
-        id: map
+    MapSurface {
+        map: mapCore
         // Silica keeps landscape pages clear of the camera cutout, at the left in Landscape and the right in
         // LandscapeInverted; the map alone is drawn under it.
         anchors {
             fill: parent
-            leftMargin: -leftInset
-            rightMargin: -rightInset
+            leftMargin: -mapCore.leftInset
+            rightMargin: -mapCore.rightInset
         }
-        leftInset: !page.projected && page.orientation === Orientation.Landscape ? Screen.topCutout.height : 0
-        rightInset: !page.projected && page.orientation === Orientation.LandscapeInverted ? Screen.topCutout.height : 0
-        // Keeps the scale line and attribution above the bottom row with its padding, or above the navigation
-        // panel.
-        bottomWidgetsOffset: page.navigating ? navigationBottomPanel.height * page.navigationScale
-                           : bottomButtons.visible ? bottomButtons.height + 2 * page.buttonMargin : 0
-        topWidgetsOffset: page.topControlsBottom
-        // Routes are fitted into the map above the open sheets.
-        viewportBottomInset: page.navigating ? navigationBottomPanel.height * page.navigationScale : page.bottomPanelsSize
+    }
+    Binding {
+        target: mapCore
+        property: "leftInset"
+        value: !page.projected && page.orientation === Orientation.Landscape ? Screen.topCutout.height : 0
+    }
+    Binding {
+        target: mapCore
+        property: "rightInset"
+        value: !page.projected && page.orientation === Orientation.LandscapeInverted ? Screen.topCutout.height : 0
+    }
+    Binding {
+        target: mapCore
+        property: "bottomWidgetsOffset"
+        value: page.navigating ? navigationBottomPanel.height * page.navigationScale
+             : bottomButtons.visible ? bottomButtons.height + 2 * page.buttonMargin : 0
+    }
+    Binding {
+        target: mapCore
+        property: "topWidgetsOffset"
+        value: page.topControlsBottom
+    }
+    Binding {
+        target: mapCore
+        property: "viewportBottomInset"
+        value: page.navigating ? navigationBottomPanel.height * page.navigationScale : page.bottomPanelsSize
     }
 
     Connections {
@@ -195,13 +203,6 @@ Page {
             message: appInfo.localized("isolines_activation_error_dialog"),
             acceptAction: function() { pageStack.push(Qt.resolvedUrl("MapsPage.qml")) }
         })
-        onTrackRecordingChanged: {
-            if (map.trackRecording)
-                recordingNotification.publish()
-            else
-                recordingNotification.close()
-        }
-        onLocationLostChanged: if (map.trackRecording) recordingNotification.publish()
     }
     // Planning a route leaves fullscreen.
     Connections {
@@ -461,19 +462,6 @@ Page {
             NumberAnimation { to: 0.4; duration: 800 }
             NumberAnimation { to: 1.0; duration: 800 }
         }
-    }
-
-    Notification {
-        id: recordingNotification
-        appName: "Organic Maps"
-        appIcon: appInfo.name
-        // Without a position the recording stalls.
-        summary: map.locationLost ? appInfo.localized("current_location_unknown_error_title")
-                                  : appInfo.localized("track_recording")
-        body: map.locationLost ? appInfo.localized("dialog_routing_location_turn_wifi") : ""
-        remoteActions: [Notifications.openApp(),
-                        Notifications.action("stop", appInfo.localized("track_recording_stop_and_save"),
-                                             "stopTrackRecording")]
     }
 
     // Declared before the navigation panel, which covers them while its menu is pulled up.

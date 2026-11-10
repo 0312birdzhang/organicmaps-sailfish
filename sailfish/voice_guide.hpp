@@ -38,6 +38,11 @@ public:
   ~VoiceGuide() override;
 
   bool IsAvailable() const { return !m_language.empty(); }
+  bool IsBusy() const
+  {
+    return !m_queue.isEmpty() || m_speechNotePending || m_speechNoteRequestsToStop > 0 ||
+           m_process.state() != QProcess::NotRunning || m_player.IsPlaying() || m_resumeTimer.isActive();
+  }
   // Empty without a voice.
   std::string const & Language() const { return m_language; }
   // Turn notification languages with a voice, in the core order.

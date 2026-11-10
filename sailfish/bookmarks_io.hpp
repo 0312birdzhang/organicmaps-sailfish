@@ -30,6 +30,7 @@ class BookmarksIO : public QObject
   Q_PROPERTY(int backupPeriod READ backupPeriod WRITE setBackupPeriod NOTIFY backupChanged)
   Q_PROPERTY(QDateTime lastBackup READ lastBackup NOTIFY backupChanged)
   Q_PROPERTY(bool backingUp READ backingUp NOTIFY backupChanged)
+  Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
   // The kml::FileType values offered for export.
@@ -50,6 +51,7 @@ public:
   void setBackupPeriod(int days);
   QDateTime lastBackup() const;
   bool backingUp() const { return m_backingUp; }
+  bool busy() const;
   QVariantList lists() const;
 
   // New bookmarks then go to the new list.
@@ -78,12 +80,14 @@ signals:
   void backupChanged();
   void backupFinished(bool success);
   void listsChanged();
+  void busyChanged();
 
 private:
   void OnBackupFile(QString const & path);
 
   Framework & m_framework;
   bool m_backingUp = false;
+  int m_exports = 0;
   // The app may stay open for days, mostly as its cover.
   QTimer m_backupTimer;
 };

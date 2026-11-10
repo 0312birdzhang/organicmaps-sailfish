@@ -41,6 +41,7 @@
 #include <QDateTime>
 #include <QGuiApplication>
 #include <QJsonObject>
+#include <QPointer>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -327,6 +328,7 @@ Routing::Routing(Framework & framework, QObject * parent)
   , m_voice(new VoiceGuide(this))
 {
   SetupVoice();
+  connect(&m_navigationExport, &NavigationExport::changed, this, &Routing::guidanceChanged);
   // The framework saves the vehicle style, which stays after the app is closed while navigating.
   SetNavigationStyle(false);
   SetupRouteBuildingListener();
@@ -420,6 +422,12 @@ Routing::~Routing()
 bool Routing::active() const
 {
   return m_framework.GetRoutingManager().GetRoutePointsCount() > 0;
+}
+
+bool Routing::HasBackgroundWork() const
+{
+  return m_navigating || m_building || m_loadingSavedRoute || m_startWhenBuilt || m_voice->IsBusy() ||
+         m_beep.IsPlaying();
 }
 
 int Routing::routerType() const
@@ -558,13 +566,22 @@ void Routing::SaveRouteForRestart()
 void Routing::restoreSavedRoute()
 {
   auto & manager = m_framework.GetRoutingManager();
-  if (active() || !manager.HasSavedRoutePoints())
+  if (active() || m_loadingSavedRoute || !manager.HasSavedRoutePoints())
     return;
-  manager.LoadRoutePoints([this](bool success)
+  m_loadingSavedRoute = true;
+  auto const generation = m_resultGeneration;
+  auto const self = QPointer<Routing>(this);
+  manager.LoadRoutePoints([self](bool success)
   {
-    if (success)
-      OnPointsChanged();
-  });
+    GetPlatform().RunTask(Platform::Thread::Gui, [self, success]
+    {
+      if (!self)
+        return;
+      self->m_loadingSavedRoute = false;
+      if (success)
+        self->OnPointsChanged();
+    });
+  }, [self, generation] { return self && self->m_resultGeneration == generation; });
 }
 
 void Routing::start()
@@ -892,8 +909,12 @@ void Routing::UpdateNavigation(double speedMps)
 
   auto const points = manager.GetRoutePoints();
   m_navigationExport.Publish(
-      {{"state", "active"}, {"routerType", routerType()}, {"turn", static_cast<int>(info.m_turn)},
-       {"exitNumber", static_cast<int>(info.m_exitNum)}, {"remainingSeconds", std::max(0, info.m_time)},
+      {{"state", "active"},
+       {"routerType", routerType()},
+       {"turn", static_cast<int>(info.m_turn)},
+       {"pedestrianTurn", static_cast<int>(info.m_pedestrianTurn)},
+       {"exitNumber", static_cast<int>(info.m_exitNum)},
+       {"remainingSeconds", std::max(0, info.m_time)},
        {"currentRoad", QString::fromStdString(info.m_currentStreetName)},
        {"nextRoad", QString::fromStdString(info.m_nextStreetName)},
        {"destination", points.empty() ? QString() : QString::fromStdString(points.back().m_title)},

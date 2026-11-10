@@ -181,6 +181,7 @@ private:
   void OnApplicationStateChanged(Qt::ApplicationState state);
   void UpdateRenderingState();
   void CreateEngine();
+  void DestroyEngine();
   void Resize(int width, int height);
   void UpdateWidgetLayout();
   void UpdateVisibleViewport();
@@ -224,7 +225,7 @@ private:
   qreal m_viewportBottomInset = 0;
   qreal m_leftInset = 0;
   qreal m_rightInset = 0;
-  bool m_inBackground = false;
+  bool m_inBackground = true;
   bool m_locationActive = false;
   bool m_locationErrorShown = false;
   bool m_locationLost = false;

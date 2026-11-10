@@ -69,6 +69,8 @@ NavigationExport::~NavigationExport()
 
 void NavigationExport::Publish(QJsonObject const & navigation)
 {
+  m_navigation = navigation;
+  emit changed();
   if (m_path.isEmpty())
     return;
   m_snapshot["navigation"] = navigation;

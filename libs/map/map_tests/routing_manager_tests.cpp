@@ -747,6 +747,41 @@ UNIT_TEST(RoutingManager_EndpointReplacementDoesNotOptimize)
   }
 }
 
+UNIT_TEST(RoutingManager_CancelledSavedRouteLoadPreservesNewPoints)
+{
+  WithSavedRoute([](RoutingManager & manager, BookmarkManager &, TestGuiThread & guiThread)
+  {
+    manager.AddRoutePoint(MakeRoutePoint(RouteMarkType::Start, 0, 1.0), false /* optimize */);
+    manager.AddRoutePoint(MakeRoutePoint(RouteMarkType::Finish, 0, 2.0), false /* optimize */);
+    manager.SaveRoutePoints();
+    WaitForFileThread();
+
+    bool completed = false;
+    bool loaded = true;
+    bool canApply = true;
+    manager.LoadRoutePoints([&](bool success)
+    {
+      GetPlatform().RunTask(Platform::Thread::Gui, [&, success]
+      {
+        loaded = success;
+        completed = true;
+      });
+    }, [&] { return canApply; });
+    manager.RemoveRoutePoints();
+    manager.AddRoutePoint(MakeRoutePoint(RouteMarkType::Start, 0, 3.0), false /* optimize */);
+    manager.AddRoutePoint(MakeRoutePoint(RouteMarkType::Finish, 0, 4.0), false /* optimize */);
+    canApply = false;
+    while (!completed)
+      guiThread.RunNext();
+
+    TEST(!loaded, ());
+    auto const points = manager.GetRoutePoints();
+    TEST_EQUAL(points.size(), 2, ());
+    TEST_EQUAL(points.front().m_position, m2::PointD(3.0, 3.0), ());
+    TEST_EQUAL(points.back().m_position, m2::PointD(4.0, 4.0), ());
+  });
+}
+
 UNIT_TEST(RoutingManager_SaveLoadRoutePointsPreservesOrder)
 {
   TestSavedRouteOrder(false /* myPositionStart */, 0 /* passedStops */, false /* hasCurrentPosition */,

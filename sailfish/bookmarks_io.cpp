@@ -72,6 +72,16 @@ BookmarksIO::BookmarksIO(Framework & framework, QObject * parent) : QObject(pare
   });
   connect(&notifier, &BookmarksNotifier::loaded, this, &BookmarksIO::BackUpIfDue);
   connect(&notifier, &BookmarksNotifier::changed, this, &BookmarksIO::listsChanged);
+  connect(&notifier, &BookmarksNotifier::loaded, this, &BookmarksIO::busyChanged);
+  connect(&notifier, &BookmarksNotifier::fileLoaded, this, &BookmarksIO::busyChanged);
+  connect(this, &BookmarksIO::backupChanged, this, &BookmarksIO::busyChanged);
+  auto const exportFinished = [this]
+  {
+    --m_exports;
+    emit busyChanged();
+  };
+  connect(this, &BookmarksIO::exportReady, this, exportFinished);
+  connect(this, &BookmarksIO::exportFailed, this, exportFinished);
 
   m_backupTimer.setInterval(60 * 60 * 1000);
   connect(&m_backupTimer, &QTimer::timeout, this, &BookmarksIO::BackUpIfDue);
@@ -85,6 +95,11 @@ BookmarksIO::BookmarksIO(Framework & framework, QObject * parent) : QObject(pare
     m_backupTimer.start();
     BackUpIfDue();
   });
+}
+
+bool BookmarksIO::busy() const
+{
+  return m_backingUp || m_exports > 0 || m_framework.GetBookmarkManager().IsAsyncLoadingInProgress();
 }
 
 QVariantList BookmarksIO::lists() const
@@ -158,6 +173,7 @@ QDateTime BookmarksIO::lastBackup() const
 void BookmarksIO::importFile(QString const & file)
 {
   m_framework.GetBookmarkManager().LoadBookmark(LocalPath(file).toStdString(), false /* isTemporaryFile */);
+  emit busyChanged();
 }
 
 bool BookmarksIO::OpenFile(QString const & file)
@@ -208,6 +224,8 @@ void BookmarksIO::exportList(quint64 listId, int fileType)
   // A page can still show a list or track deleted meanwhile, which the core CHECKs.
   if (!m_framework.GetBookmarkManager().HasBmCategory(listId))
     return;
+  ++m_exports;
+  emit busyChanged();
   m_framework.GetBookmarkManager().PrepareFileForSharing({listId}, MakeSharingHandler(this), ToFileType(fileType));
 }
 
@@ -215,11 +233,15 @@ void BookmarksIO::exportTrack(quint64 trackId, int fileType)
 {
   if (!m_framework.GetBookmarkManager().HasTrack(trackId))
     return;
+  ++m_exports;
+  emit busyChanged();
   m_framework.GetBookmarkManager().PrepareTrackFileForSharing(trackId, MakeSharingHandler(this), ToFileType(fileType));
 }
 
 void BookmarksIO::exportAll()
 {
+  ++m_exports;
+  emit busyChanged();
   m_framework.GetBookmarkManager().PrepareAllFilesForSharing(MakeSharingHandler(this));
 }
 
