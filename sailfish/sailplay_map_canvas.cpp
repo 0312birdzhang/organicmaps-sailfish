@@ -130,6 +130,7 @@ QVariantMap SailplayMapCanvas::Frame(QSize const & size)
   }
   auto const * routing = m_map.routing();
   QVariantMap const state = {{"place", m_map.placePage()->open() ? m_map.placePage()->title().left(1024) : QString()},
+                             {"bookmarked", m_map.placePage()->open() && m_map.placePage()->isBookmark()},
                              {"building", routing->building()},
                              {"built", routing->built()},
                              {"canStart", routing->canStart()},

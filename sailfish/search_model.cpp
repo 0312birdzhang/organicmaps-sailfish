@@ -137,6 +137,7 @@ void SearchModel::setQuery(QString const & query)
   if (query == m_query)
     return;
   m_query = query;
+  ++m_timestamp;
   m_linkLocale.clear();
   emit queryChanged();
   if (m_query.isEmpty())
@@ -233,11 +234,13 @@ void SearchModel::Run()
   m_runTimer.stop();
   // The old results stay until the new ones arrive.
   auto const timestamp = ++m_timestamp;
+  m_runningQuery = m_query;
   auto & api = m_framework.GetSearchAPI();
   if (m_query.isEmpty())
   {
     beginResetModel();
     m_results->Clear();
+    m_resultsQuery.clear();
     endResetModel();
     api.CancelAllSearches();
     SetSearching(false);
@@ -272,6 +275,7 @@ void SearchModel::OnResults(uint64_t timestamp, search::Results && results)
 
   beginResetModel();
   *m_results = std::move(results);
+  m_resultsQuery = m_runningQuery;
   endResetModel();
   if (m_results->IsEndMarker())
     SetSearching(false);

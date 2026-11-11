@@ -18,6 +18,7 @@
 #include "sailfish/url_handler.hpp"
 
 #ifdef OMIM_SAILPLAY
+#include "sailfish/sailplay_map_browser.hpp"
 #include "sailfish/sailplay_map_canvas.hpp"
 #include "sailfish/sailplay_navigation.hpp"
 #include "sailplayprovider.h"
@@ -242,6 +243,7 @@ __attribute__((visibility("default"))) int OrganicMapsMain(int argc, char * argv
                        {"downloading", downloads.inProgress()}};
   };
   sailfish::SailplayMapCanvas canvas(mapCore, presentation);
+  sailfish::SailplayMapBrowser browser(mapCore);
   SailplayProvider provider(QStringLiteral(SAILFISH_APP_NAME), state(),
                             {QStringLiteral("navigation"), QStringLiteral("navigation-map")});
   provider.setActionHandler(QStringLiteral("navigation.map.frame"),
@@ -259,7 +261,11 @@ __attribute__((visibility("default"))) int OrganicMapsMain(int argc, char * argv
     }
     try
     {
-      provider.complete(invocation, canvas.Frame(QSize(width.toInt(), height.toInt())));
+      auto frame = canvas.Frame(QSize(width.toInt(), height.toInt()));
+      auto mapState = frame.value("state").toMap();
+      mapState["browser"] = browser.Snapshot();
+      frame["state"] = mapState;
+      provider.complete(invocation, frame);
     }
     catch (std::exception const & error)
     {
@@ -320,6 +326,19 @@ __attribute__((visibility("default"))) int OrganicMapsMain(int argc, char * argv
       mapCore.routing()->start();
     }
     provider.complete(invocation);
+  });
+  provider.setActionHandler(QStringLiteral("navigation.map.browse"),
+                            [&](qulonglong invocation, QVariantMap const & parameters)
+  {
+    try
+    {
+      browser.Invoke(parameters);
+      provider.complete(invocation, browser.Snapshot());
+    }
+    catch (std::invalid_argument const & error)
+    {
+      provider.fail(invocation, "InvalidArgument", QString::fromUtf8(error.what()));
+    }
   });
   provider.setActionHandler(QStringLiteral("navigation.stop"),
                             [&](qulonglong invocation, QVariantMap const & parameters)

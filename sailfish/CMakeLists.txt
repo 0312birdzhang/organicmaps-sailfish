@@ -115,7 +115,7 @@ if (SAILPLAY)
   endif()
   add_subdirectory("${SAILPLAY_SDK_QT_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/sailplay-sdk")
   target_sources(${PROJECT_NAME}_lib PRIVATE sailplay_navigation.cpp sailplay_navigation.hpp
-    sailplay_map_canvas.cpp sailplay_map_canvas.hpp)
+    sailplay_map_canvas.cpp sailplay_map_canvas.hpp sailplay_map_browser.cpp sailplay_map_browser.hpp)
   target_link_libraries(${PROJECT_NAME}_lib PRIVATE sailplay_sdk_provider)
   target_compile_definitions(${PROJECT_NAME}_lib PRIVATE OMIM_SAILPLAY)
   set(SAILPLAY_SDK_LICENSE "${SAILPLAY_SDK_QT_DIR}/../../LICENSE")

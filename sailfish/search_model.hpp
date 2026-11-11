@@ -64,6 +64,7 @@ public:
   QString query() const { return m_query; }
   void setQuery(QString const & query);
   bool searching() const { return m_searching; }
+  QString resultsQuery() const { return m_resultsQuery; }
   QStringList history() const;
 
   // As {key, name} in the search language.
@@ -89,6 +90,8 @@ private:
 
   Framework & m_framework;
   QString m_query;
+  QString m_runningQuery;
+  QString m_resultsQuery;
   QString m_categoryQuery;
   std::string m_linkLocale;
   std::unique_ptr<search::Results> m_results;
