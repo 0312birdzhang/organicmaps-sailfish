@@ -30,6 +30,7 @@
 
 #include "base/logging.hpp"
 
+#include <qnumeric.h>
 #include <qqml.h>
 #include <QDir>
 #include <QEventLoop>
@@ -46,7 +47,6 @@
 
 #include <atomic>
 #include <clocale>
-#include <cmath>
 #include <cstdlib>
 #include <memory>
 #include <thread>
@@ -272,10 +272,11 @@ __attribute__((visibility("default"))) int OrganicMapsMain(int argc, char * argv
     auto const phase = parameters.value("phase");
     auto const x = parameters.value("x");
     auto const y = parameters.value("y");
+    // Qt's exported checks retain NaN rejection under the bridge's fast-math flags.
     if (parameters.size() != 3 || phase.type() != QVariant::String ||
         !QStringList{"press", "move", "release", "cancel"}.contains(phase.toString()) || x.type() != QVariant::Double ||
-        y.type() != QVariant::Double || !std::isfinite(x.toDouble()) || !std::isfinite(y.toDouble()) ||
-        x.toDouble() < 0 || x.toDouble() > 1 || y.toDouble() < 0 || y.toDouble() > 1)
+        y.type() != QVariant::Double || !qIsFinite(x.toDouble()) || !qIsFinite(y.toDouble()) || x.toDouble() < 0 ||
+        x.toDouble() > 1 || y.toDouble() < 0 || y.toDouble() > 1)
     {
       provider.fail(invocation, "InvalidArgument", "Map touch requires a phase and normalized finite coordinates");
       return;
