@@ -28,6 +28,8 @@ public:
   bool AcquireFrame();
   GLuint GetTextureHandle() const;
   QRectF const & GetTexRect() const;
+  QImage CaptureFrame(QOpenGLFunctions & functions);
+  uint64_t FrameNumber() const;
 
   // dp::GraphicsContextFactory overrides:
   dp::GraphicsContext * GetDrawContext() override;

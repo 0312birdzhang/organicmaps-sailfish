@@ -60,6 +60,16 @@ GLuint QtOGLContextFactory::GetTextureHandle() const
   return m_drawContext->GetTextureHandle();
 }
 
+QImage QtOGLContextFactory::CaptureFrame(QOpenGLFunctions & functions)
+{
+  return !m_preparedToShutdown && m_drawContext ? m_drawContext->CaptureFrame(functions) : QImage();
+}
+
+uint64_t QtOGLContextFactory::FrameNumber() const
+{
+  return !m_preparedToShutdown && m_drawContext ? m_drawContext->FrameNumber() : 0;
+}
+
 dp::GraphicsContext * QtOGLContextFactory::GetDrawContext()
 {
   if (!m_drawContext)

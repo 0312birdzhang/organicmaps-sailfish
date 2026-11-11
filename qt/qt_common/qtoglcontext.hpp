@@ -3,6 +3,7 @@
 #include "drape/oglcontext.hpp"
 
 #include <QOpenGLFramebufferObject>
+#include <QOpenGLFunctions>
 
 #include <QtGui/QOffscreenSurface>
 #include <QtGui/QOpenGLContext>
@@ -30,6 +31,8 @@ public:
   bool AcquireFrame();
   GLuint GetTextureHandle() const;
   QRectF const & GetTexRect() const;
+  QImage CaptureFrame(QOpenGLFunctions & functions);
+  uint64_t FrameNumber() const { return m_frameNumber; }
   // Called on the render thread after each new frame.
   void SetPresentListener(std::function<void()> fn);
 
@@ -46,6 +49,7 @@ private:
   QRectF m_acquiredFrameRect = QRectF(0.0, 0.0, 0.0, 0.0);
   QRectF m_frameRect = QRectF(0.0, 0.0, 0.0, 0.0);
   bool m_frameUpdated = false;
+  std::atomic<uint64_t> m_frameNumber = 0;
 
   std::atomic<bool> m_isContextAvailable;
   int m_width = 0;

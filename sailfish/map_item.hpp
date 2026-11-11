@@ -96,6 +96,10 @@ public:
   Q_INVOKABLE void zoomIn();
   Q_INVOKABLE void zoomOut();
   Q_INVOKABLE void switchMyPositionMode();
+  void SetCarViewActive(bool active);
+  QImage CaptureCarFrame(QOpenGLFunctions & functions);
+  uint64_t CarFrameNumber() const;
+  void CarTouch(QString const & phase, double x, double y);
 
   Q_INVOKABLE void setLayerEnabled(int layer, bool enabled);
   // Location keeps running in the background while recording.
@@ -226,6 +230,7 @@ private:
   qreal m_leftInset = 0;
   qreal m_rightInset = 0;
   bool m_inBackground = true;
+  bool m_carViewActive = false;
   bool m_locationActive = false;
   bool m_locationErrorShown = false;
   bool m_locationLost = false;

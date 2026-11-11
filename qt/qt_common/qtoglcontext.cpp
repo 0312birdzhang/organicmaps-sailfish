@@ -30,6 +30,7 @@ void QtRenderOGLContext::Present()
   std::lock_guard<std::mutex> lock(m_frameMutex);
   std::swap(m_frontFrame, m_backFrame);
   m_frameUpdated = true;
+  ++m_frameNumber;
   if (m_onPresent)
     m_onPresent();
 }
@@ -117,6 +118,37 @@ GLuint QtRenderOGLContext::GetTextureHandle() const
 
   CHECK(!m_acquiredFrame->isBound(), ());
   return m_acquiredFrame->texture();
+}
+
+QImage QtRenderOGLContext::CaptureFrame(QOpenGLFunctions & functions)
+{
+  std::lock_guard lock(m_frameMutex);
+  auto const & frame = m_frameUpdated ? m_frontFrame : m_acquiredFrame;
+  QRectF const & rect = m_frameUpdated ? m_frameRect : m_acquiredFrameRect;
+  int const width = qRound(rect.width() * m_width);
+  int const height = qRound(rect.height() * m_height);
+  if (m_frameNumber == 0 || !frame || width <= 0 || height <= 0 || width > 4096 || height > 4096)
+    return {};
+
+  // Framebuffer names belong to a context. Attach the shared texture to a
+  // readback-context framebuffer while keeping the renderer's frame stable.
+  GLuint framebuffer = 0;
+  GLint previous = 0;
+  functions.glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous);
+  functions.glGenFramebuffers(1, &framebuffer);
+  functions.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+  functions.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, frame->texture(), 0);
+  QImage image;
+  if (functions.glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
+  {
+    image = QImage(width, height, QImage::Format_RGBA8888);
+    functions.glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
+    if (functions.glGetError() != GL_NO_ERROR)
+      image = {};
+  }
+  functions.glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous));
+  functions.glDeleteFramebuffers(1, &framebuffer);
+  return image.mirrored();
 }
 
 QtUploadOGLContext::QtUploadOGLContext(QOpenGLContext * rootContext, QOffscreenSurface * surface)

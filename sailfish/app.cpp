@@ -18,6 +18,7 @@
 #include "sailfish/url_handler.hpp"
 
 #ifdef OMIM_SAILPLAY
+#include "sailfish/sailplay_map_canvas.hpp"
 #include "sailfish/sailplay_navigation.hpp"
 #include "sailplayprovider.h"
 #endif
@@ -45,6 +46,7 @@
 
 #include <atomic>
 #include <clocale>
+#include <cmath>
 #include <cstdlib>
 #include <memory>
 #include <thread>
@@ -239,7 +241,85 @@ __attribute__((visibility("default"))) int OrganicMapsMain(int argc, char * argv
                        {"recording", mapCore.trackRecording()},
                        {"downloading", downloads.inProgress()}};
   };
-  SailplayProvider provider(QStringLiteral(SAILFISH_APP_NAME), state(), {QStringLiteral("navigation")});
+  sailfish::SailplayMapCanvas canvas(mapCore, presentation);
+  SailplayProvider provider(QStringLiteral(SAILFISH_APP_NAME), state(),
+                            {QStringLiteral("navigation"), QStringLiteral("navigation-map")});
+  provider.setActionHandler(QStringLiteral("navigation.map.frame"),
+                            [&](qulonglong invocation, QVariantMap const & parameters)
+  {
+    auto const integer = [](QVariant const & value)
+    { return value.type() == QVariant::Int || value.type() == QVariant::UInt; };
+    auto const width = parameters.value("width");
+    auto const height = parameters.value("height");
+    if (parameters.size() != 2 || !integer(width) || !integer(height) || width.toLongLong() < 64 ||
+        width.toLongLong() > 1920 || height.toLongLong() < 64 || height.toLongLong() > 1920)
+    {
+      provider.fail(invocation, "InvalidArgument", "Map dimensions must be integers between 64 and 1920");
+      return;
+    }
+    try
+    {
+      provider.complete(invocation, canvas.Frame(QSize(width.toInt(), height.toInt())));
+    }
+    catch (std::exception const & error)
+    {
+      provider.fail(invocation, "Unavailable", QString::fromUtf8(error.what()));
+    }
+  });
+  provider.setActionHandler(QStringLiteral("navigation.map.touch"),
+                            [&](qulonglong invocation, QVariantMap const & parameters)
+  {
+    auto const phase = parameters.value("phase");
+    auto const x = parameters.value("x");
+    auto const y = parameters.value("y");
+    if (parameters.size() != 3 || phase.type() != QVariant::String ||
+        !QStringList{"press", "move", "release", "cancel"}.contains(phase.toString()) || x.type() != QVariant::Double ||
+        y.type() != QVariant::Double || !std::isfinite(x.toDouble()) || !std::isfinite(y.toDouble()) ||
+        x.toDouble() < 0 || x.toDouble() > 1 || y.toDouble() < 0 || y.toDouble() > 1)
+    {
+      provider.fail(invocation, "InvalidArgument", "Map touch requires a phase and normalized finite coordinates");
+      return;
+    }
+    canvas.Touch(phase.toString(), x.toDouble(), y.toDouble());
+    provider.complete(invocation);
+  });
+  provider.setActionHandler(QStringLiteral("navigation.map.control"),
+                            [&](qulonglong invocation, QVariantMap const & parameters)
+  {
+    auto const command = parameters.value("command");
+    if (parameters.size() != 1 || command.type() != QVariant::String ||
+        !QStringList{"zoom-in", "zoom-out", "position", "route-to-place", "start"}.contains(command.toString()))
+    {
+      provider.fail(invocation, "InvalidArgument", "Unknown map control");
+      return;
+    }
+    auto const name = command.toString();
+    if (name == "zoom-in")
+      mapCore.zoomIn();
+    else if (name == "zoom-out")
+      mapCore.zoomOut();
+    else if (name == "position")
+      mapCore.switchMyPositionMode();
+    else if (name == "route-to-place")
+    {
+      if (!mapCore.placePage()->open())
+      {
+        provider.fail(invocation, "Unavailable", "Select a place on the map first");
+        return;
+      }
+      mapCore.routing()->routeToPlace();
+    }
+    else
+    {
+      if (!mapCore.routing()->canStart() || !mapCore.routing()->disclaimerAccepted())
+      {
+        provider.fail(invocation, "Unavailable", "Confirm navigation readiness and the disclaimer on the phone");
+        return;
+      }
+      mapCore.routing()->start();
+    }
+    provider.complete(invocation);
+  });
   provider.setActionHandler(QStringLiteral("navigation.stop"),
                             [&](qulonglong invocation, QVariantMap const & parameters)
   {

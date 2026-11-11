@@ -141,6 +141,7 @@ void MapItem::DestroyEngine()
   if (!m_contextFactory)
     return;
 
+  CancelTouch();
   m_framework.EnterBackground();
   m_framework.SetRenderingDisabled(true);
   m_contextFactory->PrepareToShutdown();
@@ -163,6 +164,37 @@ void MapItem::switchMyPositionMode()
 {
   if (m_contextFactory)
     m_framework.SwitchMyPositionNextMode();
+}
+
+void MapItem::SetCarViewActive(bool active)
+{
+  m_carViewActive = active;
+  UpdateRenderingState();
+}
+
+QImage MapItem::CaptureCarFrame(QOpenGLFunctions & functions)
+{
+  return m_contextFactory ? m_contextFactory->CaptureFrame(functions) : QImage();
+}
+
+uint64_t MapItem::CarFrameNumber() const
+{
+  return m_contextFactory ? m_contextFactory->FrameNumber() : 0;
+}
+
+void MapItem::CarTouch(QString const & phase, double x, double y)
+{
+  if (phase == QStringLiteral("cancel"))
+  {
+    CancelTouch();
+    return;
+  }
+  df::TouchEvent::ETouchType const type = phase == QStringLiteral("press")   ? df::TouchEvent::TOUCH_DOWN
+                                        : phase == QStringLiteral("release") ? df::TouchEvent::TOUCH_UP
+                                                                             : df::TouchEvent::TOUCH_MOVE;
+  QMouseEvent event(QEvent::MouseMove, QPointF(x * width(), y * height()), Qt::LeftButton, Qt::LeftButton,
+                    Qt::NoModifier);
+  SendMouseTouch(&event, type);
 }
 
 int MapItem::enabledLayers() const
@@ -594,8 +626,8 @@ void MapItem::UpdateRenderingState()
   bool const projected = qgetenv("WAYLAND_DISPLAY").contains("imira-comp") &&
                          qgetenv("SAILPLAY_NAVIGATION_EXPORT") == "1";
   bool const inBackground =
-      !window() ||
-      (!projected && (!window()->isVisible() || QGuiApplication::applicationState() != Qt::ApplicationActive));
+      !window() || (!projected && !m_carViewActive &&
+                    (!window()->isVisible() || QGuiApplication::applicationState() != Qt::ApplicationActive));
   if (inBackground == m_inBackground)
     return;
 
