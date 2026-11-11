@@ -136,6 +136,7 @@ QVariantMap SailplayMapCanvas::Frame(QSize const & size)
                              {"canStart", routing->canStart()},
                              {"disclaimerAccepted", routing->disclaimerAccepted()},
                              {"summary", routing->summary().left(1024)},
+                             {"waitingForPosition", routing->waitingForPosition()},
                              {"error", routing->errorTitle().left(1024)}};
   return {{"image", m_image}, {"width", m_imageSize.width()}, {"height", m_imageSize.height()}, {"state", state}};
 }

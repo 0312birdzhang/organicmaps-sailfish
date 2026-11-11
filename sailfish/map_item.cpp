@@ -111,6 +111,7 @@ MapItem::MapItem(QQuickItem * parent)
   connect(qGuiApp, &QGuiApplication::applicationStateChanged, this, &MapItem::OnApplicationStateChanged);
   connect(this, &QQuickItem::visibleChanged, this, &MapItem::UpdateRenderingState);
   connect(m_routing.get(), &Routing::navigatingChanged, this, [this] { UpdateLocationService(); });
+  connect(m_routing.get(), &Routing::stateChanged, this, [this] { UpdateLocationService(); });
 
   m_storageSlot = m_framework.GetStorage().Subscribe([this](storage::CountryId const &) {
     UpdateCurrentCountry();
@@ -168,8 +169,11 @@ void MapItem::switchMyPositionMode()
 
 void MapItem::SetCarViewActive(bool active)
 {
+  if (active == m_carViewActive)
+    return;
   m_carViewActive = active;
   UpdateRenderingState();
+  UpdateLocationService();
 }
 
 QImage MapItem::CaptureCarFrame(QOpenGLFunctions & functions)
@@ -260,14 +264,15 @@ void MapItem::OnMyPositionModeChanged(location::EMyPositionMode mode)
 void MapItem::UpdateLocationService(bool restart)
 {
   bool const active = m_framework.IsTrackRecordingEnabled() || m_routing->navigating() ||
+                      m_routing->waitingForPosition() || m_carViewActive ||
                       (!m_inBackground && m_myPositionMode != location::NotFollowNoPosition);
-  if (active && (restart || !m_locationActive))
+  bool const wasActive = std::exchange(m_locationActive, active);
+  if (active && (restart || !wasActive))
     m_locationService->Start();
-  else if (!active && m_locationActive)
+  else if (!active && wasActive)
     m_locationService->Stop();
-  m_locationActive = active;
 
-  if (active && !m_inBackground)
+  if (m_locationActive && !m_inBackground)
     m_compass->start();
   else
     m_compass->stop();

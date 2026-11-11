@@ -3,6 +3,7 @@
 #include "platform/location_service/location_service.hpp"
 
 #include <QGeoPositionInfoSource>
+#include <QTimer>
 
 class QtLocationService
   : public QObject
@@ -18,6 +19,9 @@ class QtLocationService
   bool m_clientIsActive = false;
   // Signals queued before Stop() still arrive afterwards.
   bool m_started = false;
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+  QTimer m_startTimer;
+#endif
 
 public:
   explicit QtLocationService(location::LocationObserver &, std::string const &);

@@ -63,6 +63,7 @@ class Routing : public QObject
   Q_PROPERTY(int pickIndex READ pickIndex NOTIFY pickChanged)
   // The route failed while roads are avoided, the likely cause.
   Q_PROPERTY(bool optionsError READ optionsError NOTIFY stateChanged)
+  Q_PROPERTY(bool waitingForPosition READ waitingForPosition NOTIFY stateChanged)
   Q_PROPERTY(bool routeSaved READ routeSaved NOTIFY stateChanged)
   Q_PROPERTY(bool navigating READ navigating NOTIFY navigatingChanged)
   // turnIcon, distanceToTurn, street, streetParts, nextTurnIcon, hoursLeft, minutesLeft, hourUnits, minuteUnits,
@@ -156,6 +157,7 @@ public:
   bool disclaimerAccepted() const;
   bool canAddStop() const;
   bool optionsError() const { return m_optionsError; }
+  bool waitingForPosition() const { return m_waitingForPosition; }
   int pickType() const { return m_pickType; }
   int pickIndex() const { return m_pickIndex; }
   bool routeSaved() const { return m_routeSaved; }

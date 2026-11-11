@@ -122,6 +122,19 @@ QtLocationService::QtLocationService(location::LocationObserver & observer, std:
 
   m_positionSource->setUpdateInterval(1000);
   m_positionSource->setPreferredPositioningMethods(QGeoPositionInfoSource::AllPositioningMethods);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+  m_startTimer.setSingleShot(true);
+  connect(&m_startTimer, &QTimer::timeout, this, [this]
+  {
+    if (!m_started)
+      return;
+    m_clientIsActive = true;
+    m_positionSource->startUpdates();
+    // GeoClue 1's synchronous D-Bus calls can dispatch Stop() while subscribing.
+    if (!m_started)
+      m_positionSource->stopUpdates();
+  });
+#endif
 }
 
 void QtLocationService::OnLocationUpdate(QGeoPositionInfo const & info)
@@ -177,9 +190,10 @@ void QtLocationService::Start()
     // and can't get a lock within Qt's default `UPDATE_TIMEOUT_COLDSTART` (currently 2 minutes).
     m_positionSource->requestUpdate(1800000);
 #else
-    // Qt 5's GeoClue 1 plugin emits a timeout at once from requestUpdate() without a fix, so subscribe right away.
-    m_positionSource->startUpdates();
+    // Qt 5's GeoClue 1 plugin times out immediately from requestUpdate() without a fix. Use continuous updates.
+    // Starting can enter a nested event loop. Let the caller finish attaching its renderer first.
     m_clientIsActive = true;
+    m_startTimer.start(0);
 #endif
   }
 }
@@ -187,6 +201,9 @@ void QtLocationService::Start()
 void QtLocationService::Stop()
 {
   m_started = false;
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+  m_startTimer.stop();
+#endif
   if (m_positionSource && m_clientIsActive)
   {
     LOG(LDEBUG, ("Stopping Updates from:", m_positionSource->sourceName().toStdString()));

@@ -7,6 +7,7 @@ Item {
     // This tree belongs to the application backend and has no window.
     KeepAlive {
         enabled: mapCore.trackRecording || mapCore.routing.navigating || mapCore.routing.building
+                 || mapCore.routing.waitingForPosition
                  || downloads.inProgress || bookmarksIO.busy || osmAccount.busy
     }
 

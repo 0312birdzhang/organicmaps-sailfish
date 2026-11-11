@@ -426,8 +426,8 @@ bool Routing::active() const
 
 bool Routing::HasBackgroundWork() const
 {
-  return m_navigating || m_building || m_loadingSavedRoute || m_startWhenBuilt || m_voice->IsBusy() ||
-         m_beep.IsPlaying();
+  return m_navigating || m_building || m_waitingForPosition || m_loadingSavedRoute || m_startWhenBuilt ||
+         m_voice->IsBusy() || m_beep.IsPlaying();
 }
 
 int Routing::routerType() const
@@ -1340,15 +1340,19 @@ void Routing::OnRouteBuilt(int code, QStringList const & absentCountries)
     SetRouteError(code, absentCountries);
   }
   // Avoided roads explain a failed car route best.
-  if (!m_built && result != RouterResultCode::NeedMoreMaps && m_missingMaps.isEmpty() && routerType() == Vehicle &&
-      avoidRoads() != 0)
+  if (!m_built && !m_waitingForPosition && result != RouterResultCode::NeedMoreMaps && m_missingMaps.isEmpty() &&
+      routerType() == Vehicle && avoidRoads() != 0)
   {
     m_optionsError = true;
     SetError(Localized("unable_to_calc_alert_title"), Localized("unable_to_calc_alert_subtitle"));
   }
   emit stateChanged();
-  if (std::exchange(m_startWhenBuilt, false) && m_built)
-    start();
+  if (m_startWhenBuilt && !m_waitingForPosition)
+  {
+    m_startWhenBuilt = false;
+    if (m_built)
+      start();
+  }
 }
 
 void Routing::SetRouteSummary()
@@ -1388,7 +1392,7 @@ void Routing::SetRouteError(int code, QStringList const & absentCountries)
   switch (static_cast<RouterResultCode>(code))
   {
   case RouterResultCode::NoCurrentPosition:
-    SetError(Localized("dialog_routing_location_turn_on"), Localized("dialog_routing_location_unknown_turn_on"));
+    SetError(Localized("current_location_unknown_error_title"), Localized("dialog_routing_location_turn_wifi"));
     m_waitingForPosition = true;
     break;
   case RouterResultCode::StartPointNotFound:
