@@ -31,6 +31,7 @@ SailplayMapCanvas::SailplayMapCanvas(MapItem & map, PhonePresentation & phone, Q
       m_map.CarTouch(QStringLiteral("cancel"), 0, 0);
     m_touching = false;
     m_image.clear();
+    m_sourceViewport = {};
     if (m_lastRequest.isValid() && m_lastRequest.elapsed() <= 2500)
       Attach();
   });
@@ -79,6 +80,7 @@ void SailplayMapCanvas::Release()
   m_surface.reset();
   m_image.clear();
   m_imageSize = {};
+  m_sourceViewport = {};
   m_lastRequest.invalidate();
   m_expiry.stop();
 }
@@ -86,7 +88,13 @@ void SailplayMapCanvas::Release()
 QVariantMap SailplayMapCanvas::Frame(QSize const & size)
 {
   if (size != m_size)
+  {
+    if (m_touching)
+      m_map.CarTouch(QStringLiteral("cancel"), 0, 0);
+    m_touching = false;
     m_image.clear();
+    m_sourceViewport = {};
+  }
   m_size = size;
   m_lastRequest.restart();
   m_expiry.start();
@@ -116,8 +124,16 @@ QVariantMap SailplayMapCanvas::Frame(QSize const & size)
     m_context->doneCurrent();
     if (!image.isNull())
     {
-      if (image.width() > 1920 || image.height() > 1920)
-        image = image.scaled(1920, 1920, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+      // The shared phone view can have a different aspect ratio. Keep the car
+      // viewport and its touch mapping together while the phone stays open.
+      qreal const scale = qMax(qreal(m_size.width()) / image.width(), qreal(m_size.height()) / image.height());
+      QSize const cropSize(qBound(1, qRound(m_size.width() / scale), image.width()),
+                           qBound(1, qRound(m_size.height() / scale), image.height()));
+      QRect const crop((image.width() - cropSize.width()) / 2, (image.height() - cropSize.height()) / 2,
+                       cropSize.width(), cropSize.height());
+      QRectF const viewport(qreal(crop.x()) / image.width(), qreal(crop.y()) / image.height(),
+                            qreal(crop.width()) / image.width(), qreal(crop.height()) / image.height());
+      image = image.copy(crop).scaled(m_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
       QByteArray encoded;
       QBuffer buffer(&encoded);
       buffer.open(QIODevice::WriteOnly);
@@ -126,6 +142,7 @@ QVariantMap SailplayMapCanvas::Frame(QSize const & size)
       m_frame = number;
       m_image = encoded;
       m_imageSize = image.size();
+      m_sourceViewport = viewport;
     }
   }
   auto const * routing = m_map.routing();
@@ -143,12 +160,13 @@ QVariantMap SailplayMapCanvas::Frame(QSize const & size)
 
 void SailplayMapCanvas::Touch(QString const & phase, double x, double y)
 {
-  if (!m_lastRequest.isValid())
+  if (!m_lastRequest.isValid() || m_sourceViewport.isEmpty())
     return;
   if (phase == QStringLiteral("press"))
     m_touching = true;
   if (m_touching)
-    m_map.CarTouch(phase, x, y);
+    m_map.CarTouch(phase, m_sourceViewport.x() + x * m_sourceViewport.width(),
+                   m_sourceViewport.y() + y * m_sourceViewport.height());
   if (phase == QStringLiteral("release") || phase == QStringLiteral("cancel"))
     m_touching = false;
 }

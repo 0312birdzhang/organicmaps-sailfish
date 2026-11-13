@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QObject>
+#include <QRectF>
 #include <QSize>
 #include <QTimer>
 #include <QVariantMap>
@@ -40,6 +41,7 @@ private:
   uint64_t m_frame = 0;
   QByteArray m_image;
   QSize m_imageSize;
+  QRectF m_sourceViewport;
   bool m_touching = false;
 };
 }  // namespace sailfish
